@@ -16,6 +16,7 @@ export interface ZodiacSignData {
   startDay: number;
   endMonth: number;
   endDay: number;
+  dateRange: string;
   traits: string[];
   strengths: string[];
   weaknesses: string[];
@@ -41,6 +42,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 21,
     endMonth: 4,
     endDay: 19,
+    dateRange: 'Mar 21 – Apr 19',
     traits: ['Bold', 'Ambitious', 'Passionate', 'Courageous', 'Confident'],
     strengths: ['Leadership', 'Determination', 'Confidence', 'Enthusiasm'],
     weaknesses: ['Impatience', 'Aggression', 'Impulsiveness', 'Short temper'],
@@ -64,6 +66,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 20,
     endMonth: 5,
     endDay: 20,
+    dateRange: 'Apr 20 – May 20',
     traits: ['Reliable', 'Patient', 'Practical', 'Devoted', 'Sensual'],
     strengths: ['Reliability', 'Patience', 'Practicality', 'Stability'],
     weaknesses: ['Stubbornness', 'Possessiveness', 'Materialism', 'Resistance to change'],
@@ -87,6 +90,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 21,
     endMonth: 6,
     endDay: 20,
+    dateRange: 'May 21 – Jun 20',
     traits: ['Curious', 'Adaptable', 'Witty', 'Communicative', 'Versatile'],
     strengths: ['Communication', 'Intelligence', 'Adaptability', 'Quick thinking'],
     weaknesses: ['Indecisiveness', 'Inconsistency', 'Superficiality', 'Nervousness'],
@@ -110,6 +114,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 21,
     endMonth: 7,
     endDay: 22,
+    dateRange: 'Jun 21 – Jul 22',
     traits: ['Nurturing', 'Intuitive', 'Emotional', 'Protective', 'Empathetic'],
     strengths: ['Loyalty', 'Empathy', 'Intuition', 'Tenacity'],
     weaknesses: ['Moodiness', 'Clinginess', 'Pessimism', 'Manipulation'],
@@ -133,6 +138,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 23,
     endMonth: 8,
     endDay: 22,
+    dateRange: 'Jul 23 – Aug 22',
     traits: ['Charismatic', 'Generous', 'Creative', 'Confident', 'Dramatic'],
     strengths: ['Leadership', 'Generosity', 'Creativity', 'Warmth'],
     weaknesses: ['Arrogance', 'Stubbornness', 'Self-centeredness', 'Inflexibility'],
@@ -156,6 +162,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 23,
     endMonth: 9,
     endDay: 22,
+    dateRange: 'Aug 23 – Sep 22',
     traits: ['Analytical', 'Practical', 'Meticulous', 'Helpful', 'Reliable'],
     strengths: ['Analysis', 'Practicality', 'Loyalty', 'Attention to detail'],
     weaknesses: ['Perfectionism', 'Critical nature', 'Overthinking', 'Worry'],
@@ -179,6 +186,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 23,
     endMonth: 10,
     endDay: 22,
+    dateRange: 'Sep 23 – Oct 22',
     traits: ['Diplomatic', 'Fair-minded', 'Gracious', 'Social', 'Aesthetic'],
     strengths: ['Diplomacy', 'Balance', 'Social grace', 'Idealism'],
     weaknesses: ['Indecisiveness', 'People-pleasing', 'Avoidance of conflict', 'Superficiality'],
@@ -202,6 +210,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 23,
     endMonth: 11,
     endDay: 21,
+    dateRange: 'Oct 23 – Nov 21',
     traits: ['Intense', 'Perceptive', 'Passionate', 'Resourceful', 'Mysterious'],
     strengths: ['Determination', 'Perception', 'Passion', 'Resourcefulness'],
     weaknesses: ['Jealousy', 'Possessiveness', 'Vengefulness', 'Secrecy'],
@@ -225,6 +234,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 22,
     endMonth: 12,
     endDay: 21,
+    dateRange: 'Nov 22 – Dec 21',
     traits: ['Adventurous', 'Optimistic', 'Philosophical', 'Honest', 'Freedom-loving'],
     strengths: ['Optimism', 'Honesty', 'Enthusiasm', 'Philosophy'],
     weaknesses: ['Tactlessness', 'Overconfidence', 'Restlessness', 'Carelessness'],
@@ -248,6 +258,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 22,
     endMonth: 1,
     endDay: 19,
+    dateRange: 'Dec 22 – Jan 19',
     traits: ['Ambitious', 'Disciplined', 'Persistent', 'Practical', 'Responsible'],
     strengths: ['Ambition', 'Discipline', 'Resourcefulness', 'Patience'],
     weaknesses: ['Pessimism', 'Rigidity', 'Coldness', 'Condescension'],
@@ -271,6 +282,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 20,
     endMonth: 2,
     endDay: 18,
+    dateRange: 'Jan 20 – Feb 18',
     traits: ['Independent', 'Progressive', 'Humanitarian', 'Unconventional', 'Intellectual'],
     strengths: ['Innovation', 'Humanitarianism', 'Intelligence', 'Independence'],
     weaknesses: ['Detachment', 'Unpredictability', 'Extremism', 'Aloofness'],
@@ -294,6 +306,7 @@ export const ZODIAC_SIGNS: ZodiacSignData[] = [
     startDay: 19,
     endMonth: 3,
     endDay: 20,
+    dateRange: 'Feb 19 – Mar 20',
     traits: ['Compassionate', 'Artistic', 'Intuitive', 'Gentle', 'Spiritual'],
     strengths: ['Empathy', 'Creativity', 'Intuition', 'Wisdom'],
     weaknesses: ['Escapism', 'Idealism', 'Over-sensitivity', 'Lack of boundaries'],
