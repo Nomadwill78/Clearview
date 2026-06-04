@@ -52,7 +52,6 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Row: any;
         Insert: any;
         Update: any;
       };
