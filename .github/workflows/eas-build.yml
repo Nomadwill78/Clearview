@@ -1,0 +1,38 @@
+name: EAS Build & Submit
+
+on:
+  push:
+    branches: [main]
+    paths: ['Celestial/**']
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform'
+        required: true
+        default: 'all'
+        type: choice
+        options: [android, ios, all]
+      profile:
+        description: 'Profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options: [development, preview, production]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Install deps
+        run: npm ci
+        working-directory: Celestial
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: EAS Build
+        working-directory: Celestial
+        run: eas build --platform ${{ github.event.inputs.platform || 'all' }} --profile ${{ github.event.inputs.profile || 'preview' }} --non-interactive
