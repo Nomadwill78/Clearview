@@ -20,7 +20,7 @@ function PlanCard({ planId, selected, onSelect, current }: {
   return (
     <TouchableOpacity onPress={onSelect} activeOpacity={0.85}>
       <CosmicCard
-        style={[styles.planCard, selected && styles.planCardSelected, isCosmic && styles.cosmicCard]}
+        style={[styles.planCard, selected ? styles.planCardSelected : undefined, isCosmic ? styles.cosmicCard : undefined]}
         glow={selected && !isCosmic}
         goldGlow={selected && isCosmic}
       >
