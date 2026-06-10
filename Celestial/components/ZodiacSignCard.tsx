@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius, Shadows, Fonts } from '../constants/theme';
 import { ZodiacSignData } from '../constants/zodiac';
@@ -22,23 +22,20 @@ const ELEMENT_GRADIENTS: Record<string, [string, string]> = {
 export default function ZodiacSignCard({ sign, isHighlighted, onPress, compact, style }: Props) {
   const gradientColors = ELEMENT_GRADIENTS[sign.element] ?? ['rgba(30,21,66,0.3)', 'rgba(10,5,20,0.1)'];
 
-  const Wrapper = onPress ? TouchableOpacity : View;
-
   if (compact) {
     return (
-      <Wrapper
+      <Pressable
         onPress={onPress}
-        activeOpacity={0.8}
         style={[styles.compactContainer, isHighlighted && styles.highlighted, style]}
       >
         <Text style={styles.symbol}>{sign.symbol}</Text>
         <Text style={styles.compactName} numberOfLines={1}>{sign.name}</Text>
-      </Wrapper>
+      </Pressable>
     );
   }
 
   return (
-    <Wrapper onPress={onPress} activeOpacity={0.85} style={[style, isHighlighted ? Shadows.glow : Shadows.card]}>
+    <Pressable onPress={onPress} style={[style, isHighlighted ? Shadows.glow : Shadows.card]}>
       <LinearGradient
         colors={[gradientColors[0], gradientColors[1]]}
         start={{ x: 0, y: 0 }}
@@ -68,7 +65,7 @@ export default function ZodiacSignCard({ sign, isHighlighted, onPress, compact, 
           ))}
         </View>
       </LinearGradient>
-    </Wrapper>
+    </Pressable>
   );
 }
 

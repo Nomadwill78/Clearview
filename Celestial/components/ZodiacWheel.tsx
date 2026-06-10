@@ -41,7 +41,7 @@ export default function ZodiacWheel({ chart, size = 300 }: Props) {
             <G key={i}>
               <Line x1={lineStart.x} y1={lineStart.y} x2={lineEnd.x} y2={lineEnd.y}
                 stroke={Colors.border} strokeWidth={1} />
-              <SvgText x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central"
+              <SvgText x={pos.x} y={pos.y} textAnchor="middle" dy="0.35em"
                 fontSize={11} fill={ZODIAC_COLORS[i]} fontWeight="600">
                 {symbol}
               </SvgText>
@@ -54,7 +54,7 @@ export default function ZodiacWheel({ chart, size = 300 }: Props) {
           const angle = i * 30 + 15;
           const pos = polarToXY(cx, cy, (houseR + zodiacR) / 2 - 2, angle);
           return (
-            <SvgText key={i} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central"
+            <SvgText key={i} x={pos.x} y={pos.y} textAnchor="middle" dy="0.35em"
               fontSize={9} fill={Colors.textMuted}>
               {i + 1}
             </SvgText>
@@ -70,7 +70,7 @@ export default function ZodiacWheel({ chart, size = 300 }: Props) {
           return (
             <G key={planet.planet}>
               <Circle cx={pos.x} cy={pos.y} r={10} fill={Colors.surface} stroke={Colors.primary} strokeWidth={1} />
-              <SvgText x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central"
+              <SvgText x={pos.x} y={pos.y} textAnchor="middle" dy="0.35em"
                 fontSize={9} fill={Colors.primaryGlow}>
                 {planet.symbol}
               </SvgText>
