@@ -3,48 +3,34 @@
     "version": ">= 8.0.0"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "simulator": true
-      },
-      "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://your-project-id.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_your_key"
-      }
-    },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://your-project-id.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_your_key"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rjucvqthsseegxlwryru.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdWN2cXRoc3NlZWd4bHdyeXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDEzMjcsImV4cCI6MjA5NjY3NzMyN30.eWV2-kuViKlELBMlM11by9gGMHQftkmnSt_8Hc3BiD4",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_placeholder",
+        "ANTHROPIC_API_KEY": "sk-ant-placeholder",
+        "STRIPE_SECRET_KEY": "sk_test_placeholder",
+        "EXPO_PUBLIC_APP_URL": "celestial://"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://your-project-id.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_your_key"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rjucvqthsseegxlwryru.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdWN2cXRoc3NlZWd4bHdyeXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDEzMjcsImV4cCI6MjA5NjY3NzMyN30.eWV2-kuViKlELBMlM11by9gGMHQftkmnSt_8Hc3BiD4",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_placeholder",
+        "ANTHROPIC_API_KEY": "sk-ant-placeholder",
+        "STRIPE_SECRET_KEY": "sk_live_placeholder",
+        "EXPO_PUBLIC_APP_URL": "celestial://"
       }
     }
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "your@apple.id",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "YOUR_TEAM_ID"
-      },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
@@ -52,3 +38,4 @@
     }
   }
 }
+
