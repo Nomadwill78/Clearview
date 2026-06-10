@@ -42,7 +42,7 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE"
       ],
-      "googleServicesFile": "./google-services.json"
+
     },
     "web": {
       "bundler": "metro",
