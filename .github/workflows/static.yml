@@ -44,7 +44,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: https://rjucvqthsseegxlwryru.supabase.co
           # Anon key is safe to expose — it is the public client key
           EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdWN2cXRoc3NlZWd4bHdyeXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDEzMjcsImV4cCI6MjA5NjY3NzMyN30.eWV2-kuViKlELBMlM11by9gGMHQftkmnSt_8Hc3BiD4
-          EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+          EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_live_51RqATDRXQi1nfg3KhDBRwl0jzLO41ammtQfI8D62anppyllRHuv2IdpkUA5q4wORklJC8aGxpYslF5cxmEDwtFzh00IbGD5cKm
           EXPO_PUBLIC_APP_URL: https://nomadwill78.github.io/FlipOs
         run: npx expo export --platform web
 
