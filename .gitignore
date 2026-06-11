@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+build/
+*.orig.*
+web-build/
+.DS_Store
+*.pem
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+expo-env.d.ts
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env*.local
