@@ -11,6 +11,8 @@ import {
   tierSubtotal,
 } from "@/app/lib/types";
 import { blankItem, templateHint } from "@/app/lib/scopeTemplate";
+import { ItemPhotoButton } from "@/app/components/PhotoPicker";
+import { deletePhoto } from "@/app/lib/photos";
 
 function usd(n: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -61,6 +63,8 @@ export default function ScopeBuilder({
   }
 
   function removeItem(id: string) {
+    const item = items.find((it) => it.id === id);
+    if (item?.photoId) void deletePhoto(item.photoId);
     onItemsChange(items.filter((it) => it.id !== id));
   }
 
@@ -141,13 +145,19 @@ export default function ScopeBuilder({
                         key={item.id}
                         className="grid grid-cols-2 sm:grid-cols-[1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0"
                       >
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                          placeholder="Describe the work…"
-                          className={inputClass("px-3 col-span-2 sm:col-span-1")}
-                        />
+                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
+                          <ItemPhotoButton
+                            photoId={item.photoId}
+                            onChange={(photoId) => updateItem(item.id, { photoId })}
+                          />
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                            placeholder="Describe the work…"
+                            className={inputClass("px-3")}
+                          />
+                        </div>
                         <input
                           type="number"
                           value={item.quantity}

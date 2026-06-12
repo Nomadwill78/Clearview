@@ -21,6 +21,7 @@ export interface ScopeItem {
   quantity: string;
   unitCost: string;
   unit: string;
+  photoId?: string | null;
 }
 
 export interface Deal {
@@ -30,6 +31,7 @@ export interface Deal {
   form: DealForm;
   scopeItems: ScopeItem[];
   contingencyEnabled: boolean;
+  mainPhotoId?: string | null;
 }
 
 export const TIER_INFO: Record<Tier, { name: string; subtitle: string }> = {

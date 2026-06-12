@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { DealForm, FinancingType } from "@/app/lib/types";
+import { MainPhotoPicker } from "@/app/components/PhotoPicker";
 
 interface CostStack {
   purchasePrice: number;
@@ -123,6 +124,8 @@ interface DealAnalyzerProps {
   onFormChange: (form: DealForm) => void;
   rehabFromScope: number | null;
   onGoToScope: () => void;
+  mainPhotoId: string | null | undefined;
+  onMainPhotoChange: (photoId: string | null) => void;
 }
 
 export default function DealAnalyzer({
@@ -130,6 +133,8 @@ export default function DealAnalyzer({
   onFormChange,
   rehabFromScope,
   onGoToScope,
+  mainPhotoId,
+  onMainPhotoChange,
 }: DealAnalyzerProps) {
   function handle(field: keyof DealForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -156,6 +161,9 @@ export default function DealAnalyzer({
           <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-4">
             Deal Inputs
           </h2>
+
+          {/* Property photo */}
+          <MainPhotoPicker photoId={mainPhotoId} onChange={onMainPhotoChange} />
 
           {/* Address */}
           <div className="mb-4">

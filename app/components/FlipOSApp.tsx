@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Deal, ScopeItem } from "@/app/lib/types";
 import { scopeTotal } from "@/app/lib/types";
 import { loadDeals, saveDeals, newDeal, dealLabel } from "@/app/lib/storage";
+import { deletePhoto } from "@/app/lib/photos";
 import DealAnalyzer, { computeResults } from "@/app/components/DealAnalyzer";
 import ScopeBuilder from "@/app/components/ScopeBuilder";
 
@@ -60,6 +61,9 @@ export default function FlipOSApp() {
   function handleDeleteDeal() {
     if (!deals || !activeDeal) return;
     if (!window.confirm(`Delete "${dealLabel(activeDeal)}"? This can't be undone.`)) return;
+    // best-effort cleanup of this deal's photos
+    void deletePhoto(activeDeal.mainPhotoId);
+    activeDeal.scopeItems.forEach((it) => void deletePhoto(it.photoId));
     const remaining = deals.filter((d) => d.id !== activeId);
     if (remaining.length === 0) {
       const d = newDeal();
@@ -200,6 +204,8 @@ export default function FlipOSApp() {
             onFormChange={(form) => updateActiveDeal({ form })}
             rehabFromScope={rehabFromScope}
             onGoToScope={() => setTab("scope")}
+            mainPhotoId={activeDeal.mainPhotoId}
+            onMainPhotoChange={(mainPhotoId) => updateActiveDeal({ mainPhotoId })}
           />
         ) : (
           <ScopeBuilder

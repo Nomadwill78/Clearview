@@ -1,6 +1,6 @@
 // PDF scope-of-work generator. Loaded on demand (dynamic import) so the
 // heavy @react-pdf/renderer bundle never slows down the main app.
-import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, pdf, Image } from "@react-pdf/renderer";
 import type { Deal, ScopeItem, Tier } from "@/app/lib/types";
 import {
   TIER_INFO,
@@ -9,6 +9,7 @@ import {
   scopeSubtotal,
   tierSubtotal,
 } from "@/app/lib/types";
+import { getPhoto } from "@/app/lib/photos";
 
 const AMBER = "#b45309";
 const SLATE_DARK = "#0f172a";
@@ -40,8 +41,22 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 18,
+    marginBottom: 12,
     marginTop: 8,
+  },
+  mainPhoto: {
+    width: "100%",
+    height: 190,
+    objectFit: "cover",
+    borderRadius: 4,
+    marginBottom: 14,
+  },
+  itemPhoto: {
+    width: 70,
+    height: 52,
+    objectFit: "cover",
+    borderRadius: 2,
+    marginTop: 4,
   },
   address: { fontSize: 13, fontFamily: "Helvetica-Bold" },
   date: { fontSize: 10, color: SLATE_MID },
@@ -136,7 +151,12 @@ function fmtQty(item: ScopeItem): string {
   return `${qty.toLocaleString("en-US")}${label}`;
 }
 
-function ScopeDocument({ deal }: { deal: Deal }) {
+interface PhotoBundle {
+  main: string | null;
+  byItemId: Record<string, string>;
+}
+
+function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
   // Only items priced into the budget appear on the contractor document
   const included = deal.scopeItems.filter((it) => itemTotal(it) > 0);
   const subtotal = scopeSubtotal(included);
@@ -166,13 +186,15 @@ function ScopeDocument({ deal }: { deal: Deal }) {
           <Text style={styles.date}>Prepared {today}</Text>
         </View>
 
+        {photos.main && <Image style={styles.mainPhoto} src={photos.main} />}
+
         {/* Tiers */}
         {tiers.map((tier) => {
           const tierItems = included.filter((it) => it.tier === tier);
           if (tierItems.length === 0) return null;
           return (
-            <View key={tier} wrap={false}>
-              <View style={styles.tierHeader}>
+            <View key={tier}>
+              <View style={styles.tierHeader} minPresenceAhead={80}>
                 <View>
                   <Text style={styles.tierName}>
                     Tier {tier} — {TIER_INFO[tier].name}
@@ -192,17 +214,23 @@ function ScopeDocument({ deal }: { deal: Deal }) {
                 <Text style={[styles.colTotal, styles.headText]}>Total</Text>
               </View>
 
-              {tierItems.map((item) => (
-                <View key={item.id} style={styles.row}>
-                  <Text style={styles.colCategory}>{item.category}</Text>
-                  <Text style={styles.colDesc}>{item.description || "—"}</Text>
-                  <Text style={styles.colQty}>{fmtQty(item)}</Text>
-                  <Text style={styles.colUnit}>{usd(parseFloat(item.unitCost) || 0)}</Text>
-                  <Text style={[styles.colTotal, { fontFamily: "Helvetica-Bold" }]}>
-                    {usd(itemTotal(item))}
-                  </Text>
-                </View>
-              ))}
+              {tierItems.map((item) => {
+                const photo = photos.byItemId[item.id];
+                return (
+                  <View key={item.id} style={styles.row} wrap={false}>
+                    <Text style={styles.colCategory}>{item.category}</Text>
+                    <View style={styles.colDesc}>
+                      <Text>{item.description || "—"}</Text>
+                      {photo && <Image style={styles.itemPhoto} src={photo} />}
+                    </View>
+                    <Text style={styles.colQty}>{fmtQty(item)}</Text>
+                    <Text style={styles.colUnit}>{usd(parseFloat(item.unitCost) || 0)}</Text>
+                    <Text style={[styles.colTotal, { fontFamily: "Helvetica-Bold" }]}>
+                      {usd(itemTotal(item))}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           );
         })}
@@ -241,7 +269,19 @@ function ScopeDocument({ deal }: { deal: Deal }) {
 }
 
 export async function downloadScopePdf(deal: Deal): Promise<void> {
-  const blob = await pdf(<ScopeDocument deal={deal} />).toBlob();
+  // Resolve photos from IndexedDB before rendering
+  const photos: PhotoBundle = { main: null, byItemId: {} };
+  if (deal.mainPhotoId) photos.main = await getPhoto(deal.mainPhotoId);
+  await Promise.all(
+    deal.scopeItems
+      .filter((it) => it.photoId && itemTotal(it) > 0)
+      .map(async (it) => {
+        const url = await getPhoto(it.photoId!);
+        if (url) photos.byItemId[it.id] = url;
+      })
+  );
+
+  const blob = await pdf(<ScopeDocument deal={deal} photos={photos} />).toBlob();
   const safeAddress =
     deal.form.address.trim().replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") ||
     "scope-of-work";
