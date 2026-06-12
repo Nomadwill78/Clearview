@@ -1,0 +1,67 @@
+# End-to-end smoke test for Celestial: website, AI functions, Stripe checkout,
+# and webhook security. Run manually from the Actions tab or via dispatch.
+name: Smoke Test Celestial
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    env:
+      SUPA: https://rjucvqthsseegxlwryru.supabase.co
+      # Anon key is the public client key — safe in logs and source
+      ANON: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdWN2cXRoc3NlZWd4bHdyeXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDEzMjcsImV4cCI6MjA5NjY3NzMyN30.eWV2-kuViKlELBMlM11by9gGMHQftkmnSt_8Hc3BiD4
+    steps:
+      - name: Website is up
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "https://nomadwill78.github.io/FlipOs/")
+          echo "Website HTTP status: $code"
+          [ "$code" = "200" ] || { echo "::error::Website is not returning 200"; exit 1; }
+
+      - name: AI horoscope generates a reading
+        run: |
+          resp=$(curl -s --max-time 60 -X POST "$SUPA/functions/v1/horoscope" \
+            -H "Authorization: Bearer $ANON" -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d '{"sign":"aries","period":"today","category":"general"}')
+          echo "Response: $resp"
+          echo "$resp" | jq -e '.text and (.text | contains("try again") | not)' > /dev/null \
+            || { echo "::error::Horoscope function did not return AI text — is ANTHROPIC_API_KEY set?"; exit 1; }
+
+      - name: Ask Celeste advisor responds
+        run: |
+          resp=$(curl -s --max-time 60 -X POST "$SUPA/functions/v1/advisor" \
+            -H "Authorization: Bearer $ANON" -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d '{"messages":[{"role":"user","content":"What does my week look like?"}],"userContext":{"name":"Test","sunSign":"Leo"}}')
+          echo "Response: $resp"
+          echo "$resp" | jq -e '.text and (.text | contains("try again") | not)' > /dev/null \
+            || { echo "::error::Advisor function did not return AI text"; exit 1; }
+
+      - name: Webhook rejects forged events
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$SUPA/functions/v1/stripe-webhook" \
+            -H "Content-Type: application/json" -d '{"type":"checkout.session.completed"}')
+          echo "Unsigned webhook HTTP status: $code (401 expected)"
+          [ "$code" = "401" ] || { echo "::error::Webhook accepted an unsigned event — signature check not active"; exit 1; }
+
+      - name: Stripe checkout creates a real session
+        run: |
+          email="smoke-test-${GITHUB_RUN_ID}@example.com"
+          signup=$(curl -s -X POST "$SUPA/auth/v1/signup" \
+            -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d "{\"email\":\"$email\",\"password\":\"SmokeTest-${GITHUB_RUN_ID}!\"}")
+          token=$(echo "$signup" | jq -r '.access_token // empty')
+          if [ -z "$token" ]; then
+            echo "::warning::Signup returned no session (email confirmation may be required). Skipping checkout test."
+            echo "Signup response: $(echo "$signup" | jq -c 'del(.user)')"
+            exit 0
+          fi
+          resp=$(curl -s --max-time 60 -X POST "$SUPA/functions/v1/stripe-checkout" \
+            -H "Authorization: Bearer $token" -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d '{"planId":"starseed"}')
+          url=$(echo "$resp" | jq -r '.url // empty')
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "::error::Checkout did not return a Stripe URL. Response: $resp"
+            exit 1
+          fi
+          echo "Checkout session created: ${url:0:40}..."
