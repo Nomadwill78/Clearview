@@ -34,6 +34,18 @@ export async function POST(request: Request) {
     request.headers.get("origin") ??
     `https://${request.headers.get("host") ?? "flipos-tau.vercel.app"}`;
 
+  // If the buyer is signed in, bind the subscription to their account so
+  // the Stripe webhook can mark them Pro everywhere they sign in.
+  let clerkUserId: string | null = null;
+  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
+    try {
+      const { auth } = await import("@clerk/nextjs/server");
+      clerkUserId = (await auth()).userId;
+    } catch {
+      // not signed in — checkout still works, unlock is device-local
+    }
+  }
+
   try {
     const stripe = new Stripe(secretKey);
     const session = await stripe.checkout.sessions.create({
@@ -45,6 +57,10 @@ export async function POST(request: Request) {
         },
       ],
       allow_promotion_codes: true,
+      client_reference_id: clerkUserId ?? undefined,
+      subscription_data: clerkUserId
+        ? { metadata: { clerkUserId } }
+        : undefined,
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/?checkout=cancelled`,
     });

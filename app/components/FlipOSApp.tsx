@@ -5,7 +5,9 @@ import type { Deal, ScopeItem } from "@/app/lib/types";
 import { scopeTotal } from "@/app/lib/types";
 import { loadDeals, saveDeals, newDeal, dealLabel } from "@/app/lib/storage";
 import { deletePhoto } from "@/app/lib/photos";
-import { usePlan, setPlan, FREE_DEAL_LIMIT } from "@/app/lib/plan";
+import { usePlan, setPlan, FREE_DEAL_LIMIT, type Plan } from "@/app/lib/plan";
+import { authEnabled } from "@/app/lib/authConfig";
+import { AuthControls, AccountPlanSync } from "@/app/components/AuthControls";
 import DealAnalyzer, { computeResults } from "@/app/components/DealAnalyzer";
 import ScopeBuilder from "@/app/components/ScopeBuilder";
 import PricingModal from "@/app/components/PricingModal";
@@ -20,8 +22,10 @@ export default function FlipOSApp() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingReason, setPricingReason] = useState<"deals" | "pdf" | null>(null);
   const [welcomePro, setWelcomePro] = useState(false);
+  const [accountPlan, setAccountPlan] = useState<Plan | null>(null);
   const plan = usePlan();
-  const isPro = plan === "pro";
+  // Pro if paid on this device OR the signed-in account is Pro
+  const isPro = plan === "pro" || accountPlan === "pro";
   const loaded = useRef(false);
 
   // Handle the return from Stripe checkout
@@ -198,17 +202,20 @@ export default function FlipOSApp() {
             </button>
           </div>
 
-          {results && (
-            <div
-              className={`hidden md:block text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
-                results.grossProfit > 0
-                  ? "bg-emerald-900/60 text-emerald-400 border border-emerald-800"
-                  : "bg-red-900/60 text-red-400 border border-red-800"
-              }`}
-            >
-              {results.grossProfit > 0 ? "▲ Profitable" : "▼ Loss"}
-            </div>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {results && (
+              <div
+                className={`hidden md:block text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  results.grossProfit > 0
+                    ? "bg-emerald-900/60 text-emerald-400 border border-emerald-800"
+                    : "bg-red-900/60 text-red-400 border border-red-800"
+                }`}
+              >
+                {results.grossProfit > 0 ? "▲ Profitable" : "▼ Loss"}
+              </div>
+            )}
+            {authEnabled && <AuthControls />}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -287,6 +294,8 @@ export default function FlipOSApp() {
         onClose={() => setPricingOpen(false)}
         reason={pricingReason}
       />
+
+      {authEnabled && <AccountPlanSync onPlan={setAccountPlan} />}
     </div>
   );
 }
