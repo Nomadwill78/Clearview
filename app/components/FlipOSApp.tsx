@@ -5,8 +5,10 @@ import type { Deal, ScopeItem } from "@/app/lib/types";
 import { scopeTotal } from "@/app/lib/types";
 import { loadDeals, saveDeals, newDeal, dealLabel } from "@/app/lib/storage";
 import { deletePhoto } from "@/app/lib/photos";
+import { usePlan, setPlan, FREE_DEAL_LIMIT } from "@/app/lib/plan";
 import DealAnalyzer, { computeResults } from "@/app/components/DealAnalyzer";
 import ScopeBuilder from "@/app/components/ScopeBuilder";
+import PricingModal from "@/app/components/PricingModal";
 
 type Tab = "analyzer" | "scope";
 
@@ -15,7 +17,27 @@ export default function FlipOSApp() {
   const [activeId, setActiveId] = useState<string>("");
   const [tab, setTab] = useState<Tab>("analyzer");
   const [exporting, setExporting] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingReason, setPricingReason] = useState<"deals" | "pdf" | null>(null);
+  const [welcomePro, setWelcomePro] = useState(false);
+  const plan = usePlan();
+  const isPro = plan === "pro";
   const loaded = useRef(false);
+
+  // Handle the return from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success") {
+      setPlan("pro");
+      setWelcomePro(true);
+    }
+    if (checkout) {
+      params.delete("checkout");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
 
   // Load saved deals once on mount (client only — avoids hydration mismatch)
   useEffect(() => {
@@ -52,6 +74,11 @@ export default function FlipOSApp() {
   }
 
   function handleNewDeal() {
+    if (!isPro && deals && deals.length >= FREE_DEAL_LIMIT) {
+      setPricingReason("deals");
+      setPricingOpen(true);
+      return;
+    }
     const d = newDeal();
     setDeals((prev) => (prev ? [d, ...prev] : [d]));
     setActiveId(d.id);
@@ -76,6 +103,11 @@ export default function FlipOSApp() {
   }
 
   async function handleExportPdf() {
+    if (!isPro) {
+      setPricingReason("pdf");
+      setPricingOpen(true);
+      return;
+    }
     if (!activeDeal || exporting) return;
     setExporting(true);
     try {
@@ -119,6 +151,21 @@ export default function FlipOSApp() {
               <span className="text-amber-400">Flip</span>
               <span className="text-slate-100">OS</span>
             </span>
+            {isPro ? (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-slate-900 uppercase tracking-wider select-none">
+                Pro
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setPricingReason(null);
+                  setPricingOpen(true);
+                }}
+                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-700/60 text-amber-400 hover:bg-amber-500/10 transition-colors"
+              >
+                Upgrade
+              </button>
+            )}
           </div>
 
           {/* Deal switcher */}
@@ -191,11 +238,27 @@ export default function FlipOSApp() {
               disabled={exporting}
               className="my-1 px-3 text-xs font-semibold rounded-lg border border-amber-700/60 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
             >
-              {exporting ? "Building PDF…" : "⤓ Export PDF for GCs"}
+              {exporting ? "Building PDF…" : isPro ? "⤓ Export PDF for GCs" : "⤓ Export PDF 🔒"}
             </button>
           )}
         </div>
       </header>
+
+      {welcomePro && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+          <div className="flex items-center justify-between rounded-lg border border-emerald-800/60 bg-emerald-950/40 px-4 py-3">
+            <p className="text-sm text-emerald-300">
+              🎉 Welcome to <span className="font-bold">FlipOS Pro</span> — unlimited deals and PDF export are unlocked.
+            </p>
+            <button
+              onClick={() => setWelcomePro(false)}
+              className="text-emerald-500 hover:text-emerald-300 text-sm px-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 lg:py-8">
         {tab === "analyzer" ? (
@@ -218,6 +281,12 @@ export default function FlipOSApp() {
           />
         )}
       </main>
+
+      <PricingModal
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        reason={pricingReason}
+      />
     </div>
   );
 }
