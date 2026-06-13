@@ -91,25 +91,6 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
           Go Pro to run unlimited deals and hand polished scope-of-work PDFs to your contractors.
         </p>
 
-        {/* Billing toggle */}
-        <div className="flex justify-center mb-5">
-          <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden text-sm font-medium">
-            {(["monthly", "annual"] as Interval[]).map((i) => (
-              <button
-                key={i}
-                onClick={() => setInterval(i)}
-                className={`px-4 py-2 transition-colors ${
-                  interval === i
-                    ? "bg-amber-500 text-slate-900"
-                    : "bg-slate-800 text-slate-400 hover:text-slate-100"
-                }`}
-              >
-                {i === "monthly" ? "Monthly" : "Annual · 2 months free"}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="grid sm:grid-cols-2 gap-4">
           {/* Free */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-5">
@@ -133,23 +114,71 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
             <span className="absolute -top-2.5 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-slate-900 uppercase tracking-wider">
               Best for working flippers
             </span>
-            <h3 className="font-semibold text-amber-400">FlipOS Pro</h3>
-            <div className="mt-2 mb-4">
-              {interval === "monthly" ? (
-                <>
-                  <span className="text-3xl font-bold text-slate-100">${PRICING.monthly}</span>
-                  <span className="text-slate-500 text-sm"> / month</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-3xl font-bold text-slate-100">${PRICING.annual}</span>
-                  <span className="text-slate-500 text-sm"> / year</span>
-                  <span className="block text-xs text-emerald-400 mt-0.5">
-                    ≈ ${monthlyEquiv}/mo — save ${PRICING.monthly * 12 - PRICING.annual} a year
+            <h3 className="font-semibold text-amber-400 mb-3">FlipOS Pro</h3>
+
+            {/* Both billing options always visible and selectable */}
+            <div className="space-y-2 mb-4">
+              {/* Monthly */}
+              <button
+                onClick={() => setInterval("monthly")}
+                className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                  interval === "monthly"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-slate-700 hover:border-slate-600"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      interval === "monthly" ? "border-amber-500" : "border-slate-600"
+                    }`}
+                  >
+                    {interval === "monthly" && (
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    )}
                   </span>
-                </>
-              )}
+                  <span className="text-sm font-medium text-slate-200">Monthly</span>
+                </span>
+                <span className="text-slate-100">
+                  <span className="text-xl font-bold">${PRICING.monthly}</span>
+                  <span className="text-slate-500 text-xs"> /mo</span>
+                </span>
+              </button>
+
+              {/* Annual */}
+              <button
+                onClick={() => setInterval("annual")}
+                className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                  interval === "annual"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-slate-700 hover:border-slate-600"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      interval === "annual" ? "border-amber-500" : "border-slate-600"
+                    }`}
+                  >
+                    {interval === "annual" && (
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    )}
+                  </span>
+                  <span className="text-sm font-medium text-slate-200">Annual</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-400 uppercase tracking-wide">
+                    2 months free
+                  </span>
+                </span>
+                <span className="text-slate-100 text-right">
+                  <span className="text-xl font-bold">${PRICING.annual}</span>
+                  <span className="text-slate-500 text-xs"> /yr</span>
+                  <span className="block text-[10px] text-emerald-400">
+                    ≈ ${monthlyEquiv}/mo
+                  </span>
+                </span>
+              </button>
             </div>
+
             <ul className="space-y-2 mb-5">
               {PRO_FEATURES.map((f) => (
                 <li key={f} className="flex gap-2 text-sm text-slate-300">
@@ -163,7 +192,11 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
               disabled={loading}
               className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-900 font-bold text-sm transition-colors"
             >
-              {loading ? "Opening secure checkout…" : "Upgrade to Pro"}
+              {loading
+                ? "Opening secure checkout…"
+                : interval === "monthly"
+                ? `Upgrade — $${PRICING.monthly}/mo`
+                : `Upgrade — $${PRICING.annual}/yr`}
             </button>
             <p className="text-[10px] text-slate-600 mt-2 text-center">
               Secure payment by Stripe · Cancel anytime
