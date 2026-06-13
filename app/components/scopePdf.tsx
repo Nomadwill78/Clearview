@@ -1,13 +1,14 @@
 // PDF scope-of-work generator. Loaded on demand (dynamic import) so the
 // heavy @react-pdf/renderer bundle never slows down the main app.
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from "@react-pdf/renderer";
-import type { Deal, ScopeItem, Tier } from "@/app/lib/types";
+import type { Deal, ScopeItem } from "@/app/lib/types";
 import {
-  TIER_INFO,
+  SECTIONS,
   CONTINGENCY_PCT,
   itemTotal,
+  itemSection,
   scopeSubtotal,
-  tierSubtotal,
+  sectionSubtotal,
 } from "@/app/lib/types";
 import { getPhoto } from "@/app/lib/photos";
 
@@ -168,7 +169,6 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
     month: "long",
     day: "numeric",
   });
-  const tiers: Tier[] = [1, 2, 3];
 
   return (
     <Document title={`Scope of Work — ${address}`} author="FlipOS">
@@ -188,21 +188,19 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
 
         {photos.main && <Image style={styles.mainPhoto} src={photos.main} />}
 
-        {/* Tiers */}
-        {tiers.map((tier) => {
-          const tierItems = included.filter((it) => it.tier === tier);
-          if (tierItems.length === 0) return null;
+        {/* Areas */}
+        {SECTIONS.map((section) => {
+          const sectionItems = included.filter((it) => itemSection(it) === section.key);
+          if (sectionItems.length === 0) return null;
           return (
-            <View key={tier}>
+            <View key={section.key}>
               <View style={styles.tierHeader} minPresenceAhead={80}>
                 <View>
-                  <Text style={styles.tierName}>
-                    Tier {tier} — {TIER_INFO[tier].name}
-                  </Text>
-                  <Text style={styles.tierSub}>{TIER_INFO[tier].subtitle}</Text>
+                  <Text style={styles.tierName}>{section.name}</Text>
+                  <Text style={styles.tierSub}>{section.subtitle}</Text>
                 </View>
                 <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10 }}>
-                  {usd(tierSubtotal(included, tier))}
+                  {usd(sectionSubtotal(included, section.key))}
                 </Text>
               </View>
 
@@ -214,7 +212,7 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
                 <Text style={[styles.colTotal, styles.headText]}>Total</Text>
               </View>
 
-              {tierItems.map((item) => {
+              {sectionItems.map((item) => {
                 const photo = photos.byItemId[item.id];
                 return (
                   <View key={item.id} style={styles.row} wrap={false}>

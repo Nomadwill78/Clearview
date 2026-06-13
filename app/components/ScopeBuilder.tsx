@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { ScopeItem, Tier } from "@/app/lib/types";
+import type { ScopeItem, SectionKey, Tier } from "@/app/lib/types";
 import {
-  TIER_INFO,
+  SECTIONS,
   CONTINGENCY_PCT,
   itemTotal,
+  itemSection,
   scopeSubtotal,
+  sectionSubtotal,
   scopeTotal,
-  tierSubtotal,
 } from "@/app/lib/types";
 import { blankItem, templateHint } from "@/app/lib/scopeTemplate";
 import { ItemPhotoButton } from "@/app/components/PhotoPicker";
@@ -27,12 +28,11 @@ function inputClass(extra = "") {
   return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-sm ${extra}`;
 }
 
-const TIER_ORDER: Tier[] = [1, 2, 3];
-
-const TIER_BADGE: Record<Tier, string> = {
-  1: "bg-red-500/15 text-red-400 border-red-800/60",
-  2: "bg-sky-500/15 text-sky-400 border-sky-800/60",
-  3: "bg-emerald-500/15 text-emerald-400 border-emerald-800/60",
+// Priority dot color by the section's tier (1 = critical → 3 = cosmetic)
+const TIER_DOT: Record<Tier, string> = {
+  1: "bg-red-400",
+  2: "bg-sky-400",
+  3: "bg-emerald-400",
 };
 
 interface ScopeBuilderProps {
@@ -48,14 +48,17 @@ export default function ScopeBuilder({
   onItemsChange,
   onContingencyChange,
 }: ScopeBuilderProps) {
-  const [collapsed, setCollapsed] = useState<Record<Tier, boolean>>({
-    1: false,
-    2: false,
-    3: false,
-  });
+  // All areas start collapsed so the full list isn't overwhelming.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    SECTIONS.reduce((acc, s) => ({ ...acc, [s.key]: true }), {})
+  );
 
-  function toggleTier(tier: Tier) {
-    setCollapsed((prev) => ({ ...prev, [tier]: !prev[tier] }));
+  function toggleSection(key: SectionKey) {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function setAll(collapsedValue: boolean) {
+    setCollapsed(SECTIONS.reduce((acc, s) => ({ ...acc, [s.key]: collapsedValue }), {}));
   }
 
   function updateItem(id: string, patch: Partial<ScopeItem>) {
@@ -68,45 +71,61 @@ export default function ScopeBuilder({
     onItemsChange(items.filter((it) => it.id !== id));
   }
 
-  function addItem(tier: Tier) {
-    onItemsChange([...items, blankItem(tier)]);
-    setCollapsed((prev) => ({ ...prev, [tier]: false }));
+  function addItem(section: SectionKey) {
+    onItemsChange([...items, blankItem(section)]);
+    setCollapsed((prev) => ({ ...prev, [section]: false }));
   }
 
   const subtotal = scopeSubtotal(items);
   const contingencyAmount = contingencyEnabled ? subtotal * CONTINGENCY_PCT : 0;
   const grandTotal = scopeTotal(items, contingencyEnabled);
+  const pricedCount = items.filter((it) => itemTotal(it) > 0).length;
+  const allCollapsed = SECTIONS.every((s) => collapsed[s.key]);
 
   return (
     <div className="space-y-4">
-      {TIER_ORDER.map((tier) => {
-        const tierItems = items.filter((it) => it.tier === tier);
-        const tSubtotal = tierSubtotal(items, tier);
-        const isCollapsed = collapsed[tier];
-        const filledCount = tierItems.filter((it) => itemTotal(it) > 0).length;
+      {/* Summary bar */}
+      <div className="flex items-center justify-between bg-slate-900 rounded-xl border border-slate-800 px-4 py-3">
+        <div className="text-sm text-slate-400">
+          <span className="font-semibold text-slate-200">{pricedCount}</span>{" "}
+          line item{pricedCount === 1 ? "" : "s"} priced
+          <span className="hidden sm:inline text-slate-600"> · {SECTIONS.length} areas</span>
+        </div>
+        <button
+          onClick={() => setAll(!allCollapsed)}
+          className="text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
+        >
+          {allCollapsed ? "Expand all" : "Collapse all"}
+        </button>
+      </div>
+
+      {SECTIONS.map((section) => {
+        const sectionItems = items.filter((it) => itemSection(it) === section.key);
+        const sSubtotal = sectionSubtotal(items, section.key);
+        const isCollapsed = collapsed[section.key];
+        const filledCount = sectionItems.filter((it) => itemTotal(it) > 0).length;
 
         return (
           <section
-            key={tier}
+            key={section.key}
             className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden"
           >
-            {/* Tier header */}
+            {/* Section header */}
             <button
-              onClick={() => toggleTier(tier)}
+              onClick={() => toggleSection(section.key)}
               className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 hover:bg-slate-800/40 transition-colors text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span
-                  className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${TIER_BADGE[tier]}`}
-                >
-                  Tier {tier}
-                </span>
+                  className={`shrink-0 w-2.5 h-2.5 rounded-full ${TIER_DOT[section.tier]}`}
+                  title={section.tier === 1 ? "Critical / systems" : section.tier === 2 ? "Value rooms" : "Cosmetic"}
+                />
                 <div className="min-w-0">
                   <span className="block text-sm font-semibold text-slate-100">
-                    {TIER_INFO[tier].name}
+                    {section.name}
                   </span>
                   <span className="block text-xs text-slate-500 truncate">
-                    {TIER_INFO[tier].subtitle}
+                    {section.subtitle}
                   </span>
                 </div>
               </div>
@@ -116,8 +135,12 @@ export default function ScopeBuilder({
                     {filledCount} item{filledCount === 1 ? "" : "s"}
                   </span>
                 )}
-                <span className="font-bold tabular-nums text-amber-400 text-sm">
-                  {usd(tSubtotal)}
+                <span
+                  className={`font-bold tabular-nums text-sm ${
+                    sSubtotal > 0 ? "text-amber-400" : "text-slate-600"
+                  }`}
+                >
+                  {usd(sSubtotal)}
                 </span>
                 <span className="text-slate-500 text-xs select-none">
                   {isCollapsed ? "▸" : "▾"}
@@ -129,7 +152,8 @@ export default function ScopeBuilder({
             {!isCollapsed && (
               <div className="border-t border-slate-800">
                 {/* Column labels (desktop) */}
-                <div className="hidden sm:grid grid-cols-[1fr_5rem_6.5rem_6rem_2rem] gap-2 px-5 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-medium">
+                <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 px-5 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-medium">
+                  <span>Photo</span>
                   <span>Item</span>
                   <span>Qty</span>
                   <span>Unit Cost</span>
@@ -138,14 +162,14 @@ export default function ScopeBuilder({
                 </div>
 
                 <div className="px-4 sm:px-5 pb-4 space-y-2">
-                  {tierItems.map((item) => {
+                  {sectionItems.map((item) => {
                     const total = itemTotal(item);
                     return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-2 sm:grid-cols-[1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0"
+                        className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0"
                       >
-                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
+                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
                           <ItemPhotoButton
                             photoId={item.photoId}
                             onChange={(photoId) => updateItem(item.id, { photoId })}
@@ -155,9 +179,16 @@ export default function ScopeBuilder({
                             value={item.description}
                             onChange={(e) => updateItem(item.id, { description: e.target.value })}
                             placeholder="Describe the work…"
-                            className={inputClass("px-3")}
+                            className={inputClass("px-3 sm:hidden")}
                           />
                         </div>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                          placeholder="Describe the work…"
+                          className={inputClass("px-3 hidden sm:block")}
+                        />
                         <input
                           type="number"
                           value={item.quantity}
@@ -203,7 +234,7 @@ export default function ScopeBuilder({
                   })}
 
                   <button
-                    onClick={() => addItem(tier)}
+                    onClick={() => addItem(section.key)}
                     className="mt-1 text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
                   >
                     + Add line item

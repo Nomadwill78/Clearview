@@ -13,9 +13,25 @@ export interface DealForm {
 
 export type Tier = 1 | 2 | 3;
 
+// Areas of a home, in the order a flipper typically walks/scopes a property.
+export type SectionKey =
+  | "systems"
+  | "exterior"
+  | "kitchen"
+  | "bathrooms"
+  | "bedrooms"
+  | "living"
+  | "laundry"
+  | "garage"
+  | "basement"
+  | "landscape"
+  | "pool"
+  | "general";
+
 export interface ScopeItem {
   id: string;
   tier: Tier;
+  section?: SectionKey; // optional for back-compat with older saved deals
   category: string;
   description: string;
   quantity: string;
@@ -40,6 +56,53 @@ export const TIER_INFO: Record<Tier, { name: string; subtitle: string }> = {
   3: { name: "Cosmetic", subtitle: "Finishes, paint, and curb appeal" },
 };
 
+export interface SectionMeta {
+  key: SectionKey;
+  name: string;
+  subtitle: string;
+  tier: Tier; // drives the priority color badge
+}
+
+// Ordered: critical systems & envelope first, then value rooms, then the rest.
+export const SECTIONS: SectionMeta[] = [
+  { key: "systems", name: "Systems & Mechanical", subtitle: "HVAC, roof, electrical, plumbing — inspect and budget first", tier: 1 },
+  { key: "exterior", name: "Exterior & Structure", subtitle: "Siding, gutters, doors, deck, driveway, fencing", tier: 1 },
+  { key: "kitchen", name: "Kitchen", subtitle: "Where resale value is won", tier: 2 },
+  { key: "bathrooms", name: "Bathrooms", subtitle: "Per bathroom — use Qty for multiples", tier: 2 },
+  { key: "bedrooms", name: "Bedrooms", subtitle: "Flooring, paint, closets, doors", tier: 3 },
+  { key: "living", name: "Living & Common Areas", subtitle: "Living, dining, hallways, stairs, entry", tier: 3 },
+  { key: "laundry", name: "Laundry & Utility", subtitle: "Hookups, flooring, utility sink", tier: 3 },
+  { key: "garage", name: "Garage", subtitle: "Door, opener, floor, drywall", tier: 3 },
+  { key: "basement", name: "Basement & Attic", subtitle: "Waterproofing, insulation, finishing, egress", tier: 1 },
+  { key: "landscape", name: "Landscaping & Site", subtitle: "Sod, plants, grading, drainage, walkways", tier: 3 },
+  { key: "pool", name: "Pool & Outbuildings", subtitle: "Pool, shed, detached structures", tier: 3 },
+  { key: "general", name: "General Conditions", subtitle: "Permits, debris, final clean, staging", tier: 3 },
+];
+
+export const SECTION_META: Record<SectionKey, SectionMeta> = SECTIONS.reduce(
+  (acc, s) => ({ ...acc, [s.key]: s }),
+  {} as Record<SectionKey, SectionMeta>
+);
+
+// Resolve an item's section, inferring one for older deals saved before
+// sections existed (so no line item ever disappears from the UI/PDF).
+export function itemSection(item: ScopeItem): SectionKey {
+  if (item.section && SECTION_META[item.section]) return item.section;
+  const c = (item.category || "").toLowerCase();
+  if (/hvac|roof|foundation|electric|plumb|water|mold|sewer|septic|window/.test(c)) return "systems";
+  if (/kitchen/.test(c)) return "kitchen";
+  if (/bath/.test(c)) return "bathrooms";
+  if (/bedroom/.test(c)) return "bedrooms";
+  if (/garage/.test(c)) return "garage";
+  if (/landscap|yard|site|grad|drain/.test(c)) return "landscape";
+  if (/pool|shed|outbuilding/.test(c)) return "pool";
+  if (/stag|clean|permit|debris|dumpster|general/.test(c)) return "general";
+  if (/siding|gutter|exterior|deck|porch|driveway|fence|fascia|soffit/.test(c)) return "exterior";
+  if (/basement|attic|insulation/.test(c)) return "basement";
+  // fall back by tier
+  return item.tier === 1 ? "systems" : item.tier === 2 ? "kitchen" : "living";
+}
+
 export const CONTINGENCY_PCT = 0.15;
 
 export function itemTotal(item: ScopeItem): number {
@@ -60,4 +123,8 @@ export function scopeTotal(items: ScopeItem[], contingencyEnabled: boolean): num
 
 export function tierSubtotal(items: ScopeItem[], tier: Tier): number {
   return scopeSubtotal(items.filter((i) => i.tier === tier));
+}
+
+export function sectionSubtotal(items: ScopeItem[], key: SectionKey): number {
+  return scopeSubtotal(items.filter((i) => itemSection(i) === key));
 }
