@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ScopeItem, SectionKey, Tier } from "@/app/lib/types";
+import type { ScopeItem, SectionKey, Tier, CustomRoom, RoomType } from "@/app/lib/types";
 import {
   SECTIONS,
   CONTINGENCY_PCT,
@@ -9,9 +9,10 @@ import {
   itemSection,
   scopeSubtotal,
   sectionSubtotal,
+  roomSubtotal,
   scopeTotal,
 } from "@/app/lib/types";
-import { blankItem, templateHint } from "@/app/lib/scopeTemplate";
+import { blankItem, blankRoomItem, makeRoom, hintFor, ROOM_TYPES } from "@/app/lib/scopeTemplate";
 import { ItemPhotoButton } from "@/app/components/PhotoPicker";
 import { deletePhoto } from "@/app/lib/photos";
 
@@ -28,7 +29,7 @@ function inputClass(extra = "") {
   return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-sm ${extra}`;
 }
 
-// Priority dot color by the section's tier (1 = critical → 3 = cosmetic)
+// Priority dot color by tier (1 = critical → 3 = cosmetic)
 const TIER_DOT: Record<Tier, string> = {
   1: "bg-red-400",
   2: "bg-sky-400",
@@ -37,28 +38,38 @@ const TIER_DOT: Record<Tier, string> = {
 
 interface ScopeBuilderProps {
   items: ScopeItem[];
+  rooms: CustomRoom[];
   contingencyEnabled: boolean;
   onItemsChange: (items: ScopeItem[]) => void;
+  onRoomsChange: (rooms: CustomRoom[]) => void;
   onContingencyChange: (enabled: boolean) => void;
 }
 
 export default function ScopeBuilder({
   items,
+  rooms,
   contingencyEnabled,
   onItemsChange,
+  onRoomsChange,
   onContingencyChange,
 }: ScopeBuilderProps) {
-  // All areas start collapsed so the full list isn't overwhelming.
+  // Fixed areas start collapsed; rooms default expanded (not in this map → false).
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
     SECTIONS.reduce((acc, s) => ({ ...acc, [s.key]: true }), {})
   );
+  const [addRoomOpen, setAddRoomOpen] = useState(false);
 
-  function toggleSection(key: SectionKey) {
-    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  const isCollapsed = (key: string) => collapsed[key] ?? false;
+
+  function toggle(key: string) {
+    setCollapsed((prev) => ({ ...prev, [key]: !isCollapsed(key) }));
   }
 
   function setAll(collapsedValue: boolean) {
-    setCollapsed(SECTIONS.reduce((acc, s) => ({ ...acc, [s.key]: collapsedValue }), {}));
+    const next: Record<string, boolean> = {};
+    SECTIONS.forEach((s) => (next[s.key] = collapsedValue));
+    rooms.forEach((r) => (next[r.id] = collapsedValue));
+    setCollapsed(next);
   }
 
   function updateItem(id: string, patch: Partial<ScopeItem>) {
@@ -71,38 +82,177 @@ export default function ScopeBuilder({
     onItemsChange(items.filter((it) => it.id !== id));
   }
 
-  function addItem(section: SectionKey) {
+  function addSectionItem(section: SectionKey) {
     onItemsChange([...items, blankItem(section)]);
     setCollapsed((prev) => ({ ...prev, [section]: false }));
+  }
+
+  function addRoom(type: RoomType) {
+    const { room, items: roomItems } = makeRoom(type, rooms);
+    onRoomsChange([...rooms, room]);
+    onItemsChange([...items, ...roomItems]);
+    setCollapsed((prev) => ({ ...prev, [room.id]: false }));
+    setAddRoomOpen(false);
+  }
+
+  function addRoomLine(room: CustomRoom) {
+    onItemsChange([...items, blankRoomItem(room)]);
+  }
+
+  function renameRoom(roomId: string, name: string) {
+    onRoomsChange(rooms.map((r) => (r.id === roomId ? { ...r, name } : r)));
+  }
+
+  function deleteRoom(room: CustomRoom) {
+    if (!window.confirm(`Remove "${room.name}" and its line items?`)) return;
+    items
+      .filter((it) => it.roomId === room.id && it.photoId)
+      .forEach((it) => void deletePhoto(it.photoId));
+    onItemsChange(items.filter((it) => it.roomId !== room.id));
+    onRoomsChange(rooms.filter((r) => r.id !== room.id));
   }
 
   const subtotal = scopeSubtotal(items);
   const contingencyAmount = contingencyEnabled ? subtotal * CONTINGENCY_PCT : 0;
   const grandTotal = scopeTotal(items, contingencyEnabled);
   const pricedCount = items.filter((it) => itemTotal(it) > 0).length;
-  const allCollapsed = SECTIONS.every((s) => collapsed[s.key]);
+  const allCollapsed =
+    SECTIONS.every((s) => isCollapsed(s.key)) && rooms.every((r) => isCollapsed(r.id));
+
+  // Shared line-item row (used by both fixed areas and rooms)
+  function ItemRow({ item }: { item: ScopeItem }) {
+    const total = itemTotal(item);
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0">
+        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
+          <ItemPhotoButton
+            photoId={item.photoId}
+            onChange={(photoId) => updateItem(item.id, { photoId })}
+          />
+          <input
+            type="text"
+            value={item.description}
+            onChange={(e) => updateItem(item.id, { description: e.target.value })}
+            placeholder="Describe the work…"
+            className={inputClass("px-3 sm:hidden")}
+          />
+        </div>
+        <input
+          type="text"
+          value={item.description}
+          onChange={(e) => updateItem(item.id, { description: e.target.value })}
+          placeholder="Describe the work…"
+          className={inputClass("px-3 hidden sm:block")}
+        />
+        <input
+          type="number"
+          value={item.quantity}
+          onChange={(e) => updateItem(item.id, { quantity: e.target.value })}
+          placeholder="0"
+          min="0"
+          className={inputClass("pl-3 pr-2")}
+        />
+        <div className="relative">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
+            $
+          </span>
+          <input
+            type="number"
+            value={item.unitCost}
+            onChange={(e) => updateItem(item.id, { unitCost: e.target.value })}
+            placeholder={hintFor(item.description).replace("$", "")}
+            min="0"
+            className={inputClass("pl-6 pr-2")}
+          />
+        </div>
+        <div className="text-right">
+          <span
+            className={`font-medium tabular-nums text-sm ${
+              total > 0 ? "text-slate-100" : "text-slate-600"
+            }`}
+          >
+            {usd(total)}
+          </span>
+          <span className="block text-[10px] text-slate-600 leading-none">
+            {item.unit !== "job" || total > 0 ? `per ${item.unit}` : ""}
+          </span>
+        </div>
+        <button
+          onClick={() => removeItem(item.id)}
+          title="Remove item"
+          className="justify-self-end sm:justify-self-center text-slate-600 hover:text-red-400 transition-colors text-sm px-1"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  const colLabels = (
+    <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 px-5 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-medium">
+      <span>Photo</span>
+      <span>Item</span>
+      <span>Qty</span>
+      <span>Unit Cost</span>
+      <span className="text-right">Total</span>
+      <span />
+    </div>
+  );
 
   return (
     <div className="space-y-4">
       {/* Summary bar */}
-      <div className="flex items-center justify-between bg-slate-900 rounded-xl border border-slate-800 px-4 py-3">
-        <div className="text-sm text-slate-400">
+      <div className="flex items-center justify-between gap-3 bg-slate-900 rounded-xl border border-slate-800 px-4 py-3">
+        <div className="text-sm text-slate-400 min-w-0">
           <span className="font-semibold text-slate-200">{pricedCount}</span>{" "}
           line item{pricedCount === 1 ? "" : "s"} priced
-          <span className="hidden sm:inline text-slate-600"> · {SECTIONS.length} areas</span>
+          <span className="hidden sm:inline text-slate-600">
+            {" "}· {SECTIONS.length} areas{rooms.length > 0 ? ` + ${rooms.length} room${rooms.length === 1 ? "" : "s"}` : ""}
+          </span>
         </div>
-        <button
-          onClick={() => setAll(!allCollapsed)}
-          className="text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
-        >
-          {allCollapsed ? "Expand all" : "Collapse all"}
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setAll(!allCollapsed)}
+            className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            {allCollapsed ? "Expand all" : "Collapse all"}
+          </button>
+          {/* Add a room */}
+          <div className="relative">
+            <button
+              onClick={() => setAddRoomOpen((v) => !v)}
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 transition-colors"
+            >
+              + Add a room
+            </button>
+            {addRoomOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setAddRoomOpen(false)} />
+                <div className="absolute right-0 mt-1 z-20 w-52 max-h-72 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800 shadow-xl py-1">
+                  <p className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Choose a room to add
+                  </p>
+                  {ROOM_TYPES.map((rt) => (
+                    <button
+                      key={rt.type}
+                      onClick={() => addRoom(rt.type)}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-amber-500/15 hover:text-amber-300 transition-colors"
+                    >
+                      {rt.menuLabel}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* Fixed areas */}
       {SECTIONS.map((section) => {
-        const sectionItems = items.filter((it) => itemSection(it) === section.key);
+        const sectionItems = items.filter((it) => !it.roomId && itemSection(it) === section.key);
         const sSubtotal = sectionSubtotal(items, section.key);
-        const isCollapsed = collapsed[section.key];
+        const collapsedNow = isCollapsed(section.key);
         const filledCount = sectionItems.filter((it) => itemTotal(it) > 0).length;
 
         return (
@@ -110,9 +260,8 @@ export default function ScopeBuilder({
             key={section.key}
             className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden"
           >
-            {/* Section header */}
             <button
-              onClick={() => toggleSection(section.key)}
+              onClick={() => toggle(section.key)}
               className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 hover:bg-slate-800/40 transition-colors text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -121,12 +270,8 @@ export default function ScopeBuilder({
                   title={section.tier === 1 ? "Critical / systems" : section.tier === 2 ? "Value rooms" : "Cosmetic"}
                 />
                 <div className="min-w-0">
-                  <span className="block text-sm font-semibold text-slate-100">
-                    {section.name}
-                  </span>
-                  <span className="block text-xs text-slate-500 truncate">
-                    {section.subtitle}
-                  </span>
+                  <span className="block text-sm font-semibold text-slate-100">{section.name}</span>
+                  <span className="block text-xs text-slate-500 truncate">{section.subtitle}</span>
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0 ml-3">
@@ -135,106 +280,93 @@ export default function ScopeBuilder({
                     {filledCount} item{filledCount === 1 ? "" : "s"}
                   </span>
                 )}
-                <span
-                  className={`font-bold tabular-nums text-sm ${
-                    sSubtotal > 0 ? "text-amber-400" : "text-slate-600"
-                  }`}
-                >
+                <span className={`font-bold tabular-nums text-sm ${sSubtotal > 0 ? "text-amber-400" : "text-slate-600"}`}>
                   {usd(sSubtotal)}
                 </span>
-                <span className="text-slate-500 text-xs select-none">
-                  {isCollapsed ? "▸" : "▾"}
-                </span>
+                <span className="text-slate-500 text-xs select-none">{collapsedNow ? "▸" : "▾"}</span>
               </div>
             </button>
 
-            {/* Line items */}
-            {!isCollapsed && (
+            {!collapsedNow && (
               <div className="border-t border-slate-800">
-                {/* Column labels (desktop) */}
-                <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 px-5 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-medium">
-                  <span>Photo</span>
-                  <span>Item</span>
-                  <span>Qty</span>
-                  <span>Unit Cost</span>
-                  <span className="text-right">Total</span>
-                  <span />
-                </div>
-
+                {colLabels}
                 <div className="px-4 sm:px-5 pb-4 space-y-2">
-                  {sectionItems.map((item) => {
-                    const total = itemTotal(item);
-                    return (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0"
-                      >
-                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
-                          <ItemPhotoButton
-                            photoId={item.photoId}
-                            onChange={(photoId) => updateItem(item.id, { photoId })}
-                          />
-                          <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                            placeholder="Describe the work…"
-                            className={inputClass("px-3 sm:hidden")}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                          placeholder="Describe the work…"
-                          className={inputClass("px-3 hidden sm:block")}
-                        />
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.id, { quantity: e.target.value })}
-                          placeholder="0"
-                          min="0"
-                          className={inputClass("pl-3 pr-2")}
-                        />
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
-                            $
-                          </span>
-                          <input
-                            type="number"
-                            value={item.unitCost}
-                            onChange={(e) => updateItem(item.id, { unitCost: e.target.value })}
-                            placeholder={templateHint(item.description).replace("$", "")}
-                            min="0"
-                            className={inputClass("pl-6 pr-2")}
-                          />
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`font-medium tabular-nums text-sm ${
-                              total > 0 ? "text-slate-100" : "text-slate-600"
-                            }`}
-                          >
-                            {usd(total)}
-                          </span>
-                          <span className="block text-[10px] text-slate-600 leading-none">
-                            {item.unit !== "job" || total > 0 ? `per ${item.unit}` : ""}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          title="Remove item"
-                          className="justify-self-end sm:justify-self-center text-slate-600 hover:text-red-400 transition-colors text-sm px-1"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  })}
-
+                  {sectionItems.map((item) => (
+                    <ItemRow key={item.id} item={item} />
+                  ))}
                   <button
-                    onClick={() => addItem(section.key)}
+                    onClick={() => addSectionItem(section.key)}
+                    className="mt-1 text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
+                  >
+                    + Add line item
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })}
+
+      {/* User-added rooms */}
+      {rooms.map((room) => {
+        const roomItems = items.filter((it) => it.roomId === room.id);
+        const rSubtotal = roomSubtotal(items, room.id);
+        const collapsedNow = isCollapsed(room.id);
+        const filledCount = roomItems.filter((it) => itemTotal(it) > 0).length;
+
+        return (
+          <section
+            key={room.id}
+            className="bg-slate-900 rounded-xl border border-amber-900/40 overflow-hidden"
+          >
+            <div className="w-full flex items-center justify-between px-4 sm:px-5 py-3 gap-3">
+              <button
+                onClick={() => toggle(room.id)}
+                className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                title={collapsedNow ? "Expand" : "Collapse"}
+              >
+                <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${TIER_DOT[room.tier]}`} />
+                <span className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold shrink-0">
+                  Added room
+                </span>
+                <span className="text-slate-500 text-xs select-none">{collapsedNow ? "▸" : "▾"}</span>
+              </button>
+              <input
+                type="text"
+                value={room.name}
+                onChange={(e) => renameRoom(room.id, e.target.value)}
+                placeholder="Room name"
+                className="flex-1 min-w-0 bg-transparent border-0 border-b border-transparent hover:border-slate-700 focus:border-amber-500 text-sm font-semibold text-slate-100 focus:outline-none py-0.5"
+                title="Rename this room"
+              />
+              <div className="flex items-center gap-3 shrink-0">
+                {filledCount > 0 && (
+                  <span className="hidden sm:block text-xs text-slate-500">
+                    {filledCount} item{filledCount === 1 ? "" : "s"}
+                  </span>
+                )}
+                <span className={`font-bold tabular-nums text-sm ${rSubtotal > 0 ? "text-amber-400" : "text-slate-600"}`}>
+                  {usd(rSubtotal)}
+                </span>
+                <button
+                  onClick={() => deleteRoom(room)}
+                  title="Remove this room"
+                  className="text-slate-600 hover:text-red-400 transition-colors text-sm"
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+
+            {!collapsedNow && (
+              <div className="border-t border-slate-800">
+                {colLabels}
+                <div className="px-4 sm:px-5 pb-4 space-y-2">
+                  {roomItems.map((item) => (
+                    <ItemRow key={item.id} item={item} />
+                  ))}
+                  <button
+                    onClick={() => addRoomLine(room)}
                     className="mt-1 text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
                   >
                     + Add line item
@@ -273,16 +405,12 @@ export default function ScopeBuilder({
               Contingency <span className="text-slate-500">(+15% — recommended for older builds)</span>
             </span>
           </label>
-          <span className="font-medium tabular-nums text-slate-200">
-            {usd(contingencyAmount)}
-          </span>
+          <span className="font-medium tabular-nums text-slate-200">{usd(contingencyAmount)}</span>
         </div>
 
         <div className="flex justify-between items-center pt-3">
           <span className="font-semibold text-slate-100">Total Rehab Budget</span>
-          <span className="font-bold tabular-nums text-amber-400 text-xl">
-            {usd(grandTotal)}
-          </span>
+          <span className="font-bold tabular-nums text-amber-400 text-xl">{usd(grandTotal)}</span>
         </div>
         {grandTotal > 0 && (
           <p className="text-xs text-slate-500 mt-2">

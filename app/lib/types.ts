@@ -32,12 +32,34 @@ export interface ScopeItem {
   id: string;
   tier: Tier;
   section?: SectionKey; // optional for back-compat with older saved deals
+  roomId?: string; // when set, the item belongs to a user-added room, not a fixed area
   category: string;
   description: string;
   quantity: string;
   unitCost: string;
   unit: string;
   photoId?: string | null;
+}
+
+// User-added rooms (e.g., "Bedroom 2", "Hall Bath") live alongside the fixed areas.
+export type RoomType =
+  | "bedroom"
+  | "bathroom"
+  | "halfbath"
+  | "kitchen"
+  | "living"
+  | "dining"
+  | "office"
+  | "bonus"
+  | "sunroom"
+  | "mudroom"
+  | "custom";
+
+export interface CustomRoom {
+  id: string;
+  name: string;
+  type: RoomType;
+  tier: Tier;
 }
 
 export interface Deal {
@@ -48,6 +70,7 @@ export interface Deal {
   scopeItems: ScopeItem[];
   contingencyEnabled: boolean;
   mainPhotoId?: string | null;
+  rooms?: CustomRoom[];
 }
 
 export const TIER_INFO: Record<Tier, { name: string; subtitle: string }> = {
@@ -126,5 +149,10 @@ export function tierSubtotal(items: ScopeItem[], tier: Tier): number {
 }
 
 export function sectionSubtotal(items: ScopeItem[], key: SectionKey): number {
-  return scopeSubtotal(items.filter((i) => itemSection(i) === key));
+  // Fixed-area subtotals exclude items that belong to a user-added room.
+  return scopeSubtotal(items.filter((i) => !i.roomId && itemSection(i) === key));
+}
+
+export function roomSubtotal(items: ScopeItem[], roomId: string): number {
+  return scopeSubtotal(items.filter((i) => i.roomId === roomId));
 }

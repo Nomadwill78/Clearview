@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Deal, ScopeItem } from "@/app/lib/types";
+import type { Deal, ScopeItem, CustomRoom } from "@/app/lib/types";
 import { scopeTotal } from "@/app/lib/types";
 import { loadDeals, saveDeals, newDeal, dealLabel } from "@/app/lib/storage";
 import { deletePhoto } from "@/app/lib/photos";
@@ -280,8 +280,10 @@ export default function FlipOSApp() {
         ) : (
           <ScopeBuilder
             items={activeDeal.scopeItems}
+            rooms={activeDeal.rooms ?? []}
             contingencyEnabled={activeDeal.contingencyEnabled}
             onItemsChange={(scopeItems: ScopeItem[]) => updateActiveDeal({ scopeItems })}
+            onRoomsChange={(rooms: CustomRoom[]) => updateActiveDeal({ rooms })}
             onContingencyChange={(contingencyEnabled) =>
               updateActiveDeal({ contingencyEnabled })
             }

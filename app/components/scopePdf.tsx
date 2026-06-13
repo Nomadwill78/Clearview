@@ -8,7 +8,6 @@ import {
   itemTotal,
   itemSection,
   scopeSubtotal,
-  sectionSubtotal,
 } from "@/app/lib/types";
 import { getPhoto } from "@/app/lib/photos";
 
@@ -170,6 +169,22 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
     day: "numeric",
   });
 
+  // Build ordered groups: fixed areas (excluding room items), then added rooms.
+  const groups: { key: string; name: string; subtitle: string; items: ScopeItem[] }[] = [
+    ...SECTIONS.map((s) => ({
+      key: s.key,
+      name: s.name,
+      subtitle: s.subtitle,
+      items: included.filter((it) => !it.roomId && itemSection(it) === s.key),
+    })),
+    ...(deal.rooms ?? []).map((room) => ({
+      key: room.id,
+      name: room.name,
+      subtitle: "Added room",
+      items: included.filter((it) => it.roomId === room.id),
+    })),
+  ];
+
   return (
     <Document title={`Scope of Work — ${address}`} author="FlipOS">
       <Page size="LETTER" style={styles.page}>
@@ -188,19 +203,18 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
 
         {photos.main && <Image style={styles.mainPhoto} src={photos.main} />}
 
-        {/* Areas */}
-        {SECTIONS.map((section) => {
-          const sectionItems = included.filter((it) => itemSection(it) === section.key);
-          if (sectionItems.length === 0) return null;
+        {/* Groups: fixed areas first, then user-added rooms */}
+        {groups.map((group) => {
+          if (group.items.length === 0) return null;
           return (
-            <View key={section.key}>
+            <View key={group.key}>
               <View style={styles.tierHeader} minPresenceAhead={80}>
                 <View>
-                  <Text style={styles.tierName}>{section.name}</Text>
-                  <Text style={styles.tierSub}>{section.subtitle}</Text>
+                  <Text style={styles.tierName}>{group.name}</Text>
+                  {group.subtitle ? <Text style={styles.tierSub}>{group.subtitle}</Text> : null}
                 </View>
                 <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10 }}>
-                  {usd(sectionSubtotal(included, section.key))}
+                  {usd(scopeSubtotal(group.items))}
                 </Text>
               </View>
 
@@ -212,7 +226,7 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
                 <Text style={[styles.colTotal, styles.headText]}>Total</Text>
               </View>
 
-              {sectionItems.map((item) => {
+              {group.items.map((item) => {
                 const photo = photos.byItemId[item.id];
                 return (
                   <View key={item.id} style={styles.row} wrap={false}>
