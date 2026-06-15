@@ -1,0 +1,24 @@
+{
+  "name": "kalshi-safe-bets",
+  "version": "1.0.0",
+  "description": "Weekly Kalshi safe bets analyzer powered by Claude AI",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "run:built": "node dist/index.js",
+    "dev": "ts-node --watch src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
