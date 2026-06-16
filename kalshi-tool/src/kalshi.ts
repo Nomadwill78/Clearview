@@ -1,4 +1,4 @@
-import { KalshiAuthResponse, KalshiMarket, KalshiMarketsResponse } from './types.js';
+import { KalshiAuthResponse, KalshiMarket, KalshiMarketsResponse } from './types';
 
 const BASE_URL = 'https://trading-api.kalshi.com/trade-api/v2';
 

@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { KalshiClient } from './kalshi.js';
-import { rankMarkets } from './scoring.js';
-import { explainSafeBet, generateWeeklySummary } from './claude.js';
-import { buildReport, printReport, saveReport } from './report.js';
+import { KalshiClient } from './kalshi';
+import { rankMarkets } from './scoring';
+import { explainSafeBet, generateWeeklySummary } from './claude';
+import { buildReport, printReport, saveReport } from './report';
 
 async function main() {
   // ── Config ──────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ScoredMarket, WeeklyReport } from './types.js';
+import { ScoredMarket, WeeklyReport } from './types';
 
 export function buildReport(
   markets: ScoredMarket[],

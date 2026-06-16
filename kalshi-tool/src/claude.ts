@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ScoredMarket } from './types.js';
+import { ScoredMarket } from './types';
 
 const client = new Anthropic();
 

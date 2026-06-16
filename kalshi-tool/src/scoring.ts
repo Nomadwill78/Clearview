@@ -1,4 +1,4 @@
-import { KalshiMarket, SafetyDetails, ScoredMarket } from './types.js';
+import { KalshiMarket, SafetyDetails, ScoredMarket } from './types';
 
 // Weights for each safety dimension (must sum to 1.0)
 const WEIGHTS = {
