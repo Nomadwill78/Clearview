@@ -1,6 +1,6 @@
 import { KalshiAuthResponse, KalshiMarket, KalshiMarketsResponse } from './types';
 
-const BASE_URL = 'https://trading-api.kalshi.com/trade-api/v2';
+const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
 
 export class KalshiClient {
   private token: string | null = null;
