@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Colors, FontSizes, Spacing, BorderRadius, Shadows } from '../constants/theme';
@@ -17,7 +17,9 @@ interface Props {
 
 export default function GlowButton({ title, onPress, variant = 'primary', size = 'md', style, textStyle, disabled, icon }: Props) {
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== 'web') {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    }
     onPress();
   };
 
@@ -35,7 +37,7 @@ export default function GlowButton({ title, onPress, variant = 'primary', size =
         onPress={handlePress}
         disabled={disabled}
         style={[styles.base, { paddingVertical: sz.paddingVertical, paddingHorizontal: sz.paddingHorizontal, borderWidth: 1.5, borderColor: Colors.primary, backgroundColor: 'transparent' }, style]}
-        activeOpacity={0.75}
+        activeOpacity={0.6}
       >
         {icon}
         <Text style={[styles.text, { fontSize: sz.fontSize, color: Colors.primaryGlow }, textStyle]}>{title}</Text>
@@ -45,7 +47,7 @@ export default function GlowButton({ title, onPress, variant = 'primary', size =
 
   if (variant === 'ghost') {
     return (
-      <TouchableOpacity onPress={handlePress} disabled={disabled} style={style} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handlePress} disabled={disabled} style={[styles.ghostHit, style]} activeOpacity={0.6}>
         <Text style={[styles.text, { fontSize: sz.fontSize, color: Colors.textSecondary }, textStyle]}>{title}</Text>
       </TouchableOpacity>
     );
@@ -58,9 +60,18 @@ export default function GlowButton({ title, onPress, variant = 'primary', size =
   const glowShadow = variant === 'gold' ? Shadows.goldGlow : Shadows.glow;
 
   return (
-    <TouchableOpacity onPress={handlePress} disabled={disabled} style={[style, { opacity: disabled ? 0.5 : 1 }]} activeOpacity={0.85}>
-      <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={[styles.base, glowShadow, { paddingVertical: sz.paddingVertical, paddingHorizontal: sz.paddingHorizontal }]}>
+    <TouchableOpacity
+      onPress={handlePress}
+      disabled={disabled}
+      style={[style, { opacity: disabled ? 0.5 : 1 }]}
+      activeOpacity={0.65}
+    >
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.base, glowShadow, { paddingVertical: sz.paddingVertical, paddingHorizontal: sz.paddingHorizontal }]}
+      >
         {icon}
         <Text style={[styles.text, { fontSize: sz.fontSize }, textStyle]}>{title}</Text>
       </LinearGradient>
@@ -71,4 +82,5 @@ export default function GlowButton({ title, onPress, variant = 'primary', size =
 const styles = StyleSheet.create({
   base: { borderRadius: BorderRadius.full, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   text: { color: Colors.text, fontFamily: 'Inter-SemiBold', letterSpacing: 0.3 },
+  ghostHit: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, alignItems: 'center' },
 });
