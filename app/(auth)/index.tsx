@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -15,17 +15,32 @@ export default function AuthScreen() {
   const router = useRouter();
 
   const handleAuth = async () => {
-    if (!email || !password) { Alert.alert('Please fill in all fields'); return; }
+    if (!email.trim() || !password) {
+      Alert.alert('Missing Fields', 'Please enter your email and password.');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Password Too Short', 'Password must be at least 6 characters.');
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'signin') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
         router.replace('/(tabs)');
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
-        if (data.user) router.replace('/(auth)/onboarding');
+        if (data.session) {
+          router.replace('/(auth)/onboarding');
+        } else {
+          Alert.alert(
+            'Check Your Email',
+            'We sent you a confirmation link. Click it to activate your account, then sign in.',
+            [{ text: 'OK', onPress: () => setMode('signin') }]
+          );
+        }
       }
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -66,9 +81,9 @@ export default function AuthScreen() {
   return (
     <LinearGradient colors={['#0A0514', '#130D2B']} style={styles.container}>
       <StarField />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.formContainer}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.formContainer}>
         <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity onPress={() => setMode('welcome')} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => setMode('welcome')} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.formTitle}>{mode === 'signin' ? 'Welcome Back' : 'Create Account'}</Text>
@@ -86,6 +101,7 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
             />
           </View>
           <View style={styles.inputGroup}>
@@ -97,16 +113,33 @@ export default function AuthScreen() {
               placeholder="••••••••"
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             />
+            {mode === 'signup' && (
+              <Text style={styles.hint}>At least 6 characters</Text>
+            )}
           </View>
-          <GlowButton
-            title={loading ? 'Connecting...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+
+          <TouchableOpacity
             onPress={handleAuth}
             disabled={loading}
-            size="lg"
-            style={styles.authBtn}
-          />
-          <TouchableOpacity onPress={() => setMode(mode === 'signin' ? 'signup' : 'signin')} style={styles.switchMode}>
+            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+            activeOpacity={0.7}
+          >
+            {loading ? (
+              <ActivityIndicator color={Colors.text} />
+            ) : (
+              <Text style={styles.submitBtnText}>
+                {mode === 'signin' ? 'Sign In' : 'Create Account'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setEmail(''); setPassword(''); }}
+            style={styles.switchMode}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Text style={styles.switchText}>
               {mode === 'signin' ? "Don't have an account? " : "Already have an account? "}
               <Text style={styles.switchLink}>{mode === 'signin' ? 'Sign Up' : 'Sign In'}</Text>
@@ -138,13 +171,22 @@ const styles = StyleSheet.create({
   formSubtitle: { fontSize: FontSizes.base, color: Colors.textSecondary, fontFamily: 'Inter-Regular', marginBottom: Spacing.lg },
   inputGroup: { gap: Spacing.xs },
   label: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontFamily: 'Inter-Medium', letterSpacing: 0.5 },
+  hint: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Regular', marginTop: 2 },
   input: {
     backgroundColor: Colors.surfaceLight, borderRadius: BorderRadius.md, padding: Spacing.base,
     color: Colors.text, fontFamily: 'Inter-Regular', fontSize: FontSizes.base,
     borderWidth: 1, borderColor: Colors.border,
   },
-  authBtn: { marginTop: Spacing.md },
-  switchMode: { alignItems: 'center', marginTop: Spacing.md },
+  submitBtn: {
+    backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
+    paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
+    marginTop: Spacing.md, minHeight: 52,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6, shadowRadius: 12, elevation: 8,
+  },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: Colors.text, fontFamily: 'Inter-SemiBold', fontSize: FontSizes.md, letterSpacing: 0.3 },
+  switchMode: { alignItems: 'center', marginTop: Spacing.md, paddingVertical: Spacing.sm },
   switchText: { color: Colors.textSecondary, fontFamily: 'Inter-Regular', fontSize: FontSizes.sm },
   switchLink: { color: Colors.primaryGlow, fontFamily: 'Inter-SemiBold' },
 });
