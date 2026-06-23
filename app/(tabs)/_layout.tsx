@@ -1,26 +1,15 @@
-import { Tabs, useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Tabs, Redirect } from 'expo-router';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors, BorderRadius } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 
-function TabIcon({ focused, emoji, label }: { focused: boolean; emoji: string; label?: string }) {
-  return (
-    <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
-      <View style={{ fontSize: 22 } as any}>
-        {/* emoji rendered as text via tab bar label */}
-      </View>
-    </View>
-  );
-}
-
 export default function TabsLayout() {
   const { session, loading } = useAuthStore();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !session) router.replace('/(auth)');
-  }, [session, loading]);
+  // Show nothing while the session check is in flight
+  if (loading) return <ActivityIndicator style={{ flex: 1, backgroundColor: Colors.background }} color={Colors.primary} />;
+  // If session is gone (sign-out), send back to auth
+  if (!session) return <Redirect href="/(auth)" />;
 
   return (
     <Tabs

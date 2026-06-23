@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/authStore';
 import StarField from '../../components/StarField';
 import GlowButton from '../../components/GlowButton';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../constants/theme';
@@ -13,6 +14,12 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const { session, loading: authLoading } = useAuthStore();
+  // Still checking localStorage — show nothing rather than a flash of the auth form
+  if (authLoading) return null;
+  // Already signed in (returning user or fresh sign-in) — go straight to the app
+  if (session) return <Redirect href="/(tabs)" />;
 
   const handleAuth = async () => {
     if (!email.trim() || !password) {
