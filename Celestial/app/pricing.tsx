@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -68,21 +68,23 @@ function PlanCard({ planId, selected, onSelect, current }: {
 export default function PricingScreen() {
   const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLANS>('starseed');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const { plan: currentPlan } = useSubscription();
   const router = useRouter();
 
   const handleSubscribe = async () => {
     if (selectedPlan === 'free' || selectedPlan === currentPlan) return;
+    setErrorMsg('');
     setLoading(true);
     try {
       const url = await createCheckoutSession(selectedPlan as 'starseed' | 'cosmic');
       if (url) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Error', 'Could not open checkout. Please try again.');
+        setErrorMsg('Could not open checkout. Please try again.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setErrorMsg(err.message);
     }
     setLoading(false);
   };
@@ -115,6 +117,7 @@ export default function PricingScreen() {
             />
           ))}
 
+          {!!errorMsg && <Text style={styles.errorMsg}>{errorMsg}</Text>}
           {selectedPlan !== 'free' && selectedPlan !== currentPlan && (
             <GlowButton
               title={loading ? 'Opening Checkout...' : `Subscribe to ${PLANS[selectedPlan].name}`}
@@ -171,4 +174,5 @@ const styles = StyleSheet.create({
   subscribeBtn: { marginTop: Spacing.sm },
   footer: { alignItems: 'center', gap: 4, paddingTop: Spacing.md },
   footerText: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Regular' },
+  errorMsg: { color: '#F87171', fontFamily: 'Inter-Regular', fontSize: FontSizes.sm, textAlign: 'center' },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Platform, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,22 +19,30 @@ export default function ProfileScreen() {
   const { plan, currentPeriodEnd, isPremium } = useSubscription();
   const router = useRouter();
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [portalError, setPortalError] = useState('');
 
   const signInfo = profile?.sunSign ? getZodiacInfo(profile.sunSign) : null;
 
   const handleBillingPortal = async () => {
+    setPortalError('');
     setOpeningPortal(true);
     const url = await openBillingPortal();
     if (url) Linking.openURL(url);
-    else Alert.alert('Error', 'Could not open billing portal. Please contact support.');
+    else setPortalError('Could not open billing portal. Please contact support.');
     setOpeningPortal(false);
   };
 
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: async () => { await signOut(); router.replace('/(auth)'); } },
-    ]);
+  const handleSignOut = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Are you sure you want to sign out?')
+      : await new Promise<boolean>(resolve => {
+          const { Alert } = require('react-native');
+          Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Sign Out', style: 'destructive', onPress: () => resolve(true) },
+          ]);
+        });
+    if (confirmed) { await signOut(); router.replace('/(auth)'); }
   };
 
   return (
@@ -94,6 +102,7 @@ export default function ProfileScreen() {
                 </Text>
               )}
             </View>
+            {!!portalError && <Text style={styles.errorMsg}>{portalError}</Text>}
             {isPremium ? (
               <GlowButton title={openingPortal ? 'Opening...' : 'Manage Billing'} onPress={handleBillingPortal}
                 variant="outline" size="sm" disabled={openingPortal} />
@@ -161,4 +170,5 @@ const styles = StyleSheet.create({
   toggleSubtitle: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Regular' },
   signOutBtn: { alignItems: 'center', paddingVertical: Spacing.base },
   signOutText: { color: Colors.error, fontFamily: 'Inter-Medium', fontSize: FontSizes.base },
+  errorMsg: { color: '#F87171', fontFamily: 'Inter-Regular', fontSize: FontSizes.sm },
 });

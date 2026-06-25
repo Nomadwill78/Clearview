@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, ViewStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, ViewStyle, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -53,7 +53,9 @@ export default function TarotCard({
 
   const handlePress = () => {
     if (onFlip) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS !== 'web') {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      }
       onFlip();
     }
   };
