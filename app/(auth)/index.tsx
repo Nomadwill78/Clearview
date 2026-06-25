@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Redirect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,8 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const router = useRouter();
 
   const { session, loading: authLoading } = useAuthStore();
@@ -22,12 +24,14 @@ export default function AuthScreen() {
   if (session) return <Redirect href="/(tabs)" />;
 
   const handleAuth = async () => {
+    setErrorMsg('');
+    setSuccessMsg('');
     if (!email.trim() || !password) {
-      Alert.alert('Missing Fields', 'Please enter your email and password.');
+      setErrorMsg('Please enter your email and password.');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Password Too Short', 'Password must be at least 6 characters.');
+      setErrorMsg('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
@@ -42,15 +46,13 @@ export default function AuthScreen() {
         if (data.session) {
           router.replace('/(auth)/onboarding');
         } else {
-          Alert.alert(
-            'Check Your Email',
-            'We sent you a confirmation link. Click it to activate your account, then sign in.',
-            [{ text: 'OK', onPress: () => setMode('signin') }]
-          );
+          setSuccessMsg('Account created! Check your email for a confirmation link, then sign in below.');
+          setMode('signin');
+          setPassword('');
         }
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -127,6 +129,9 @@ export default function AuthScreen() {
             )}
           </View>
 
+          {!!successMsg && <Text style={styles.successMsg}>{successMsg}</Text>}
+          {!!errorMsg && <Text style={styles.errorMsg}>{errorMsg}</Text>}
+
           <TouchableOpacity
             onPress={handleAuth}
             disabled={loading}
@@ -143,7 +148,7 @@ export default function AuthScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setEmail(''); setPassword(''); }}
+            onPress={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setEmail(''); setPassword(''); setErrorMsg(''); setSuccessMsg(''); }}
             style={styles.switchMode}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
@@ -196,4 +201,6 @@ const styles = StyleSheet.create({
   switchMode: { alignItems: 'center', marginTop: Spacing.md, paddingVertical: Spacing.sm },
   switchText: { color: Colors.textSecondary, fontFamily: 'Inter-Regular', fontSize: FontSizes.sm },
   switchLink: { color: Colors.primaryGlow, fontFamily: 'Inter-SemiBold' },
+  errorMsg: { color: '#F87171', fontFamily: 'Inter-Regular', fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.sm },
+  successMsg: { color: '#34D399', fontFamily: 'Inter-Regular', fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.sm },
 });

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  Alert, KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
@@ -124,6 +124,7 @@ export default function OnboardingScreen() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const dayRef = useRef<TextInput>(null);
   const yearRef = useRef<TextInput>(null);
@@ -191,8 +192,9 @@ export default function OnboardingScreen() {
   const signInfo = signKey ? getZodiacInfo(signKey) : null;
 
   const handleFinish = async () => {
+    setErrorMsg('');
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter your name so the stars can find you.');
+      setErrorMsg('Please enter your name so the stars can find you.');
       return;
     }
     if (!user) return;
@@ -230,7 +232,7 @@ export default function OnboardingScreen() {
       });
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -396,6 +398,7 @@ export default function OnboardingScreen() {
           </View>
 
           {/* ── Submit ── */}
+          {!!errorMsg && <Text style={styles.errorMsg}>{errorMsg}</Text>}
           <TouchableOpacity
             onPress={handleFinish}
             disabled={loading}
@@ -497,4 +500,5 @@ const styles = StyleSheet.create({
 
   skipAll: { alignItems: 'center', paddingVertical: Spacing.base, marginTop: Spacing.sm },
   skipAllText: { color: Colors.textMuted, fontFamily: 'Inter-Regular', fontSize: FontSizes.sm },
+  errorMsg: { color: '#F87171', fontFamily: 'Inter-Regular', fontSize: FontSizes.sm, textAlign: 'center', marginBottom: Spacing.sm },
 });
