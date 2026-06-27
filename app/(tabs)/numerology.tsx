@@ -4,48 +4,84 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProfile } from '../../hooks/useProfile';
 import { usePremiumFeature } from '../../hooks/useSubscription';
-import { getNumerologyProfile, LIFE_PATH_MEANINGS } from '../../lib/numerology';
+import {
+  getNumerologyProfile,
+  LIFE_PATH_MEANINGS,
+  DESTINY_MEANINGS,
+  SOUL_URGE_MEANINGS,
+  PERSONALITY_MEANINGS,
+  BIRTHDAY_MEANINGS,
+  PERSONAL_YEAR_MEANINGS,
+  NumberMeaning,
+} from '../../lib/numerology';
 import StarField from '../../components/StarField';
 import CosmicCard from '../../components/CosmicCard';
 import PremiumGate from '../../components/PremiumGate';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../constants/theme';
 
-function NumberCard({ number, title, subtitle, description, isLocked }: {
-  number: number; title: string; subtitle: string; description: string; isLocked?: boolean;
+const CURRENT_YEAR = new Date().getFullYear();
+
+/** Always shows the number, archetype, and essence as a free glimpse; gates the full interpretation. */
+function PremiumNumberCard({ number, label, subtitle, data, isLocked }: {
+  number: number; label: string; subtitle: string; data?: NumberMeaning; isLocked: boolean;
 }) {
-  const card = (
+  if (!data) return null;
+  return (
     <CosmicCard style={styles.numCard} glow>
       <View style={styles.numHeader}>
         <View style={styles.numBadge}>
           <Text style={styles.numDigit}>{number}</Text>
         </View>
-        <View>
-          <Text style={styles.numTitle}>{title}</Text>
+        <View style={styles.numHeaderText}>
+          <Text style={styles.numLabel}>{label}</Text>
+          <Text style={styles.numTitle}>{data.title}</Text>
           <Text style={styles.numSubtitle}>{subtitle}</Text>
         </View>
       </View>
-      <Text style={styles.numDesc}>{description}</Text>
+      <Text style={styles.essence}>{data.essence}</Text>
+      <PremiumGate isLocked={isLocked} feature={`your ${label}`}>
+        <Text style={styles.numDesc}>{data.meaning}</Text>
+      </PremiumGate>
     </CosmicCard>
   );
+}
 
-  if (isLocked) return (
-    <PremiumGate isLocked={true} feature={title}>
-      {card}
-    </PremiumGate>
+/** A free, fully-revealed number reading (used for the gifts we give away). */
+function FreeNumberCard({ number, label, subtitle, data, gold }: {
+  number: number; label: string; subtitle: string; data?: NumberMeaning; gold?: boolean;
+}) {
+  if (!data) return null;
+  return (
+    <CosmicCard style={styles.numCard} glow={!gold} goldGlow={gold}>
+      <View style={styles.numHeader}>
+        <View style={[styles.numBadge, gold && styles.numBadgeGold]}>
+          <Text style={[styles.numDigit, gold && styles.numDigitGold]}>{number}</Text>
+        </View>
+        <View style={styles.numHeaderText}>
+          <Text style={[styles.numLabel, gold && { color: Colors.accent }]}>{label}</Text>
+          <Text style={styles.numTitle}>{data.title}</Text>
+          <Text style={styles.numSubtitle}>{subtitle}</Text>
+        </View>
+      </View>
+      <Text style={styles.essence}>{data.essence}</Text>
+      <Text style={styles.numDesc}>{data.meaning}</Text>
+    </CosmicCard>
   );
-  return card;
 }
 
 export default function NumerologyScreen() {
   const { profile } = useProfile();
   const { isLocked } = usePremiumFeature('numerology');
 
+  const hasName = !!profile?.name?.trim();
+
   const nums = useMemo(() => {
-    if (!profile?.birthDate || !profile?.name) return null;
-    return getNumerologyProfile(profile.birthDate, profile.name);
+    if (!profile?.birthDate) return null;
+    return getNumerologyProfile(profile.birthDate, profile.name ?? '', CURRENT_YEAR);
   }, [profile?.birthDate, profile?.name]);
 
   const lifePathMeaning = nums ? LIFE_PATH_MEANINGS[nums.lifePathNumber] : null;
+  const personalYear = nums ? PERSONAL_YEAR_MEANINGS[nums.personalYearNumber] : null;
 
   if (!profile?.birthDate) {
     return (
@@ -67,7 +103,7 @@ export default function NumerologyScreen() {
 
           {nums && (
             <>
-              {/* Life Path - always visible */}
+              {/* Life Path — always free, the centerpiece */}
               <CosmicCard style={styles.heroCard} goldGlow>
                 <Text style={styles.heroLabel}>✦ Your Life Path Number</Text>
                 <Text style={styles.heroNumber}>{nums.lifePathNumber}</Text>
@@ -89,38 +125,70 @@ export default function NumerologyScreen() {
                 )}
               </CosmicCard>
 
-              {/* Destiny - premium */}
-              <NumberCard
-                number={nums.destinyNumber}
-                title="Destiny Number"
-                subtitle="Your life's mission"
-                description={`Your Destiny Number ${nums.destinyNumber} reveals the path your soul has chosen for this lifetime — the gifts you are meant to develop and the contribution you are here to make.`}
-                isLocked={isLocked}
-              />
+              {/* Personal Year — free, timely hook that changes each year */}
+              {personalYear && (
+                <CosmicCard style={styles.yearCard} glow>
+                  <View style={styles.yearHeader}>
+                    <Text style={styles.yearLabel}>Your {CURRENT_YEAR} Personal Year</Text>
+                    <View style={styles.yearBadge}>
+                      <Text style={styles.yearBadgeNum}>{nums.personalYearNumber}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.yearTitle}>{personalYear.title}</Text>
+                  <Text style={styles.yearEssence}>{personalYear.essence}</Text>
+                  <Text style={styles.numDesc}>{personalYear.meaning}</Text>
+                </CosmicCard>
+              )}
 
-              {/* Soul Urge - premium */}
-              <NumberCard
-                number={nums.soulUrgeNumber}
-                title="Soul Urge Number"
-                subtitle="Your heart's deepest desire"
-                description={`Soul Urge ${nums.soulUrgeNumber} speaks to the secret longings of your heart — what you truly want at the deepest level of your being, beyond what you show the world.`}
-                isLocked={isLocked}
-              />
+              {hasName ? (
+                <>
+                  <Text style={styles.sectionLabel}>Your Core Numbers</Text>
 
-              {/* Personality */}
-              <NumberCard
-                number={nums.personalityNumber}
-                title="Personality Number"
-                subtitle="How others see you"
-                description={`Your Personality Number ${nums.personalityNumber} reveals the outer mask you wear — the qualities you project to the world and how others experience your energy in daily interactions.`}
-                isLocked={isLocked}
-              />
+                  {/* Destiny — premium, with a free glimpse */}
+                  <PremiumNumberCard
+                    number={nums.destinyNumber}
+                    label="Destiny Number"
+                    subtitle="Your life's mission"
+                    data={DESTINY_MEANINGS[nums.destinyNumber]}
+                    isLocked={isLocked}
+                  />
 
-              {/* Birthday */}
-              <CosmicCard style={styles.birthdayCard}>
-                <Text style={styles.numTitle}>Birthday Number {nums.birthdayNumber}</Text>
-                <Text style={styles.numDesc}>A special gift you carry into this life — a natural talent that, when developed, becomes one of your most powerful contributions to the world.</Text>
-              </CosmicCard>
+                  {/* Soul Urge — premium, with a free glimpse */}
+                  <PremiumNumberCard
+                    number={nums.soulUrgeNumber}
+                    label="Soul Urge Number"
+                    subtitle="Your heart's deepest desire"
+                    data={SOUL_URGE_MEANINGS[nums.soulUrgeNumber]}
+                    isLocked={isLocked}
+                  />
+
+                  {/* Personality — premium, with a free glimpse */}
+                  <PremiumNumberCard
+                    number={nums.personalityNumber}
+                    label="Personality Number"
+                    subtitle="How the world sees you"
+                    data={PERSONALITY_MEANINGS[nums.personalityNumber]}
+                    isLocked={isLocked}
+                  />
+
+                  {/* Birthday — a free gift, fully revealed, to show the depth of premium */}
+                  <Text style={styles.sectionLabel}>A Gift From The Stars</Text>
+                  <FreeNumberCard
+                    number={nums.birthdayNumber}
+                    label="Birthday Number"
+                    subtitle="A talent you were born with"
+                    data={BIRTHDAY_MEANINGS[nums.birthdayNumber]}
+                  />
+                </>
+              ) : (
+                <CosmicCard style={styles.nameCard}>
+                  <Text style={styles.numTitle}>Unlock your name numbers</Text>
+                  <Text style={styles.numDesc}>
+                    Add your full name in Profile to reveal your Destiny, Soul Urge, and Personality numbers — the
+                    heart of your numerology blueprint.
+                  </Text>
+                </CosmicCard>
+              )}
             </>
           )}
         </ScrollView>
@@ -137,6 +205,7 @@ const styles = StyleSheet.create({
   scroll: { padding: Spacing.base, paddingBottom: 100, gap: Spacing.base },
   title: { fontSize: FontSizes['3xl'], color: Colors.text, fontFamily: 'PlayfairDisplay-Bold', paddingTop: Spacing.sm },
   subtitle: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontFamily: 'Inter-Regular' },
+  sectionLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontFamily: 'Inter-Medium', letterSpacing: 1, textTransform: 'uppercase', marginTop: Spacing.sm },
   heroCard: { alignItems: 'center', gap: Spacing.sm },
   heroLabel: { fontSize: FontSizes.xs, color: Colors.accent, fontFamily: 'Inter-Medium', letterSpacing: 2, textTransform: 'uppercase' },
   heroNumber: { fontSize: 96, color: Colors.accentGlow, fontFamily: 'PlayfairDisplay-Bold', lineHeight: 100 },
@@ -148,12 +217,24 @@ const styles = StyleSheet.create({
   divider: { width: '100%', height: 1, backgroundColor: Colors.border, marginVertical: 4 },
   challengesLabel: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Medium', textTransform: 'uppercase', letterSpacing: 1 },
   challengesText: { fontSize: FontSizes.xs, color: Colors.textSecondary, fontFamily: 'Inter-Regular' },
+  yearCard: { gap: Spacing.xs },
+  yearHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  yearLabel: { fontSize: FontSizes.xs, color: Colors.primaryGlow, fontFamily: 'Inter-Medium', letterSpacing: 1.5, textTransform: 'uppercase' },
+  yearBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary + '30', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  yearBadgeNum: { fontSize: FontSizes.lg, color: Colors.primaryGlow, fontFamily: 'PlayfairDisplay-Bold' },
+  yearTitle: { fontSize: FontSizes.xl, color: Colors.text, fontFamily: 'PlayfairDisplay-Bold' },
+  yearEssence: { fontSize: FontSizes.sm, color: Colors.accentGlow, fontFamily: 'Inter-Medium', fontStyle: 'italic' },
   numCard: { gap: Spacing.sm },
   numHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  numHeaderText: { flex: 1 },
   numBadge: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.primary + '30', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  numBadgeGold: { backgroundColor: Colors.accent + '25', borderColor: Colors.accent },
   numDigit: { fontSize: FontSizes['2xl'], color: Colors.primaryGlow, fontFamily: 'PlayfairDisplay-Bold' },
+  numDigitGold: { color: Colors.accentGlow },
+  numLabel: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Medium', letterSpacing: 1, textTransform: 'uppercase' },
   numTitle: { fontSize: FontSizes.md, color: Colors.text, fontFamily: 'PlayfairDisplay-Bold' },
   numSubtitle: { fontSize: FontSizes.xs, color: Colors.textMuted, fontFamily: 'Inter-Regular' },
+  essence: { fontSize: FontSizes.sm, color: Colors.accentGlow, fontFamily: 'Inter-Medium', fontStyle: 'italic' },
   numDesc: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 22, fontFamily: 'Inter-Regular' },
-  birthdayCard: { gap: Spacing.xs },
+  nameCard: { gap: Spacing.xs },
 });
