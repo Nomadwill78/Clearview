@@ -11,6 +11,7 @@ export const PLANS = {
       'Basic birth chart',
       'Life path number',
       'Moon phase tracker',
+      '3 free Ask Celeste questions',
       'Community readings',
     ],
     locked: [
@@ -19,7 +20,7 @@ export const PLANS = {
       'Compatibility detailed analysis',
       'Numerology full profile',
       'Tarot & Oracle readings',
-      'Ask Celeste AI advisor',
+      'Unlimited Ask Celeste advisor',
     ],
   },
   starseed: {

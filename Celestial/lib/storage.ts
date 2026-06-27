@@ -25,4 +25,8 @@ export const STORAGE_KEYS = {
   ONBOARDING_COMPLETE: 'celestial_onboarding_complete',
   CACHED_HOROSCOPE: 'celestial_horoscope_cache',
   LAST_TAROT_DATE: 'celestial_last_tarot_date',
+  CELESTE_FREE_USED: 'celestial_celeste_free_used',
 } as const;
+
+// How many free Ask Celeste questions a non-Cosmic user gets before upgrading.
+export const CELESTE_FREE_LIMIT = 3;
