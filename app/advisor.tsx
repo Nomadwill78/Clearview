@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useProfile } from '../hooks/useProfile';
 import { usePremiumFeature } from '../hooks/useSubscription';
-import { chatWithCeleste, Message } from '../lib/claude';
+import { chatWithCeleste, fetchAdvisorUsage, Message } from '../lib/claude';
 import { storage, STORAGE_KEYS, CELESTE_FREE_LIMIT } from '../lib/storage';
 import StarField from '../components/StarField';
 import GlowButton from '../components/GlowButton';
@@ -38,8 +38,16 @@ export default function AdvisorScreen() {
 
   useEffect(() => {
     (async () => {
-      const used = await storage.get<number>(STORAGE_KEYS.CELESTE_FREE_USED);
-      if (typeof used === 'number') setFreeUsed(used);
+      // Server-side per-account count is the source of truth; fall back to the
+      // local count when offline or before the backend migration is deployed.
+      const serverUsed = await fetchAdvisorUsage();
+      if (serverUsed !== null) {
+        setFreeUsed(serverUsed);
+        storage.set(STORAGE_KEYS.CELESTE_FREE_USED, serverUsed);
+      } else {
+        const local = await storage.get<number>(STORAGE_KEYS.CELESTE_FREE_USED);
+        if (typeof local === 'number') setFreeUsed(local);
+      }
       setQuotaLoaded(true);
     })();
   }, []);
@@ -53,27 +61,37 @@ export default function AdvisorScreen() {
     if (!content) return;
     if (limitReached) return;
 
-    // Count the question against the free allowance for non-Cosmic users.
-    if (!isCosmic) {
-      const next = freeUsed + 1;
-      setFreeUsed(next);
-      storage.set(STORAGE_KEYS.CELESTE_FREE_USED, next);
-    }
-
     const newMessages: Message[] = [...messages, { role: 'user', content }];
     setMessages(newMessages);
     setInput('');
     setLoading(true);
     try {
-      const response = await chatWithCeleste(newMessages, {
+      const reply = await chatWithCeleste(newMessages, {
         sunSign: profile?.sunSign, moonSign: profile?.moonSign,
         risingSign: profile?.risingSign, name: profile?.name,
       });
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+
+      if (reply.limitReached) {
+        // Server declined — free questions are spent. Show a warm hand-off.
+        setFreeUsed(CELESTE_FREE_LIMIT);
+        storage.set(STORAGE_KEYS.CELESTE_FREE_USED, CELESTE_FREE_LIMIT);
+        setMessages(prev => [...prev, { role: 'assistant', content: "We've reached the end of your free questions, dear soul ✨ Upgrade to Cosmic and we can keep exploring the stars together, as often as your heart desires. 🌙" }]);
+        return;
+      }
+
+      setMessages(prev => [...prev, { role: 'assistant', content: reply.text }]);
+
+      // Sync the counter to the server's truth (or increment locally as fallback).
+      if (!isCosmic) {
+        const nextUsed = reply.used !== null ? reply.used : freeUsed + 1;
+        setFreeUsed(nextUsed);
+        storage.set(STORAGE_KEYS.CELESTE_FREE_USED, nextUsed);
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'The cosmic signal is disrupted for a moment. Please try again. 🌙' }]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
