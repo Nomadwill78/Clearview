@@ -46,15 +46,43 @@ export async function generateBirthChartReading(params: {
   }
 }
 
+export interface CelesteReply {
+  text: string;
+  /** True when the account has spent all its free questions (non-Cosmic). */
+  limitReached: boolean;
+  /** Server-side free-question count, or null when unknown (offline/Cosmic). */
+  used: number | null;
+}
+
 export async function chatWithCeleste(messages: Message[], userContext: {
   sunSign?: string; moonSign?: string; risingSign?: string;
   lifePathNumber?: number; name?: string;
-}): Promise<string> {
+}): Promise<CelesteReply> {
   try {
-    return await callEdgeFunction('advisor', { messages, userContext });
+    const { data, error } = await supabase.functions.invoke('advisor', { body: { messages, userContext } });
+    if (error) throw error;
+    const used = typeof data?.used === 'number' ? data.used : null;
+    if (data?.limitReached) return { text: '', limitReached: true, used };
+    return { text: data?.text ?? data?.content ?? '', limitReached: false, used };
   } catch {
     const lastMessage = messages[messages.length - 1]?.content ?? '';
-    return getCelesteResponse(lastMessage, userContext);
+    return { text: getCelesteResponse(lastMessage, userContext), limitReached: false, used: null };
+  }
+}
+
+/** Reads the account's server-side free-question count. Returns null if unavailable. */
+export async function fetchAdvisorUsage(): Promise<number | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from('advisor_usage')
+      .select('free_questions_used')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    return data?.free_questions_used ?? 0;
+  } catch {
+    return null;
   }
 }
 
