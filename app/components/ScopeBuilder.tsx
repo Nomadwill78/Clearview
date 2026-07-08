@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ScopeItem, SectionKey, Tier, CustomRoom, RoomType } from "@/app/lib/types";
 import {
   SECTIONS,
@@ -35,6 +35,134 @@ const TIER_DOT: Record<Tier, string> = {
   2: "bg-sky-400",
   3: "bg-emerald-400",
 };
+
+// Numeric input that keeps a local draft while typing and commits on change and
+// again on blur — Enter and Tab both leave the field, so all three paths commit.
+function NumberField({
+  value,
+  onCommit,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+  placeholder?: string;
+  className: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+
+  // Adopt outside changes (e.g. switching deals) while the field isn't being edited.
+  useEffect(() => {
+    if (!focused.current) setDraft(value);
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      min="0"
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onCommit(e.target.value);
+      }}
+      onFocus={() => {
+        focused.current = true;
+      }}
+      onBlur={(e) => {
+        focused.current = false;
+        onCommit(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      className={className}
+    />
+  );
+}
+
+// Shared line-item row (used by both fixed areas and rooms). Must stay a
+// top-level component: defining it inside ScopeBuilder gives it a new identity
+// every render, which remounts the inputs and drops focus mid-keystroke.
+function ItemRow({
+  item,
+  onUpdate,
+  onRemove,
+}: {
+  item: ScopeItem;
+  onUpdate: (id: string, patch: Partial<ScopeItem>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const total = itemTotal(item);
+  const hint = hintFor(item.description);
+  const showHint = hint !== "0" && item.unitCost.trim() === "";
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0">
+      <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
+        <ItemPhotoButton
+          photoId={item.photoId}
+          onChange={(photoId) => onUpdate(item.id, { photoId })}
+        />
+        <input
+          type="text"
+          value={item.description}
+          onChange={(e) => onUpdate(item.id, { description: e.target.value })}
+          placeholder="Describe the work…"
+          className={inputClass("px-3 sm:hidden")}
+        />
+      </div>
+      <input
+        type="text"
+        value={item.description}
+        onChange={(e) => onUpdate(item.id, { description: e.target.value })}
+        placeholder="Describe the work…"
+        className={inputClass("px-3 hidden sm:block")}
+      />
+      <NumberField
+        value={item.quantity}
+        onCommit={(quantity) => onUpdate(item.id, { quantity })}
+        placeholder="0"
+        className={inputClass("pl-3 pr-2")}
+      />
+      <div>
+        <div className="relative">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
+            $
+          </span>
+          <NumberField
+            value={item.unitCost}
+            onCommit={(unitCost) => onUpdate(item.id, { unitCost })}
+            className={inputClass("pl-6 pr-2")}
+          />
+        </div>
+        {showHint && (
+          <p className="mt-1 text-[10px] leading-tight text-slate-500">Typical {hint}</p>
+        )}
+      </div>
+      <div className="text-right">
+        <span
+          className={`font-medium tabular-nums text-sm ${
+            total > 0 ? "text-slate-100" : "text-slate-600"
+          }`}
+        >
+          {usd(total)}
+        </span>
+        <span className="block text-[10px] text-slate-600 leading-none">
+          {item.unit !== "job" || total > 0 ? `per ${item.unit}` : ""}
+        </span>
+      </div>
+      <button
+        onClick={() => onRemove(item.id)}
+        title="Remove item"
+        className="justify-self-end sm:justify-self-center text-slate-600 hover:text-red-400 transition-colors text-sm px-1"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 interface ScopeBuilderProps {
   items: ScopeItem[];
@@ -118,75 +246,6 @@ export default function ScopeBuilder({
   const pricedCount = items.filter((it) => itemTotal(it) > 0).length;
   const allCollapsed =
     SECTIONS.every((s) => isCollapsed(s.key)) && rooms.every((r) => isCollapsed(r.id));
-
-  // Shared line-item row (used by both fixed areas and rooms)
-  function ItemRow({ item }: { item: ScopeItem }) {
-    const total = itemTotal(item);
-    return (
-      <div className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0">
-        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
-          <ItemPhotoButton
-            photoId={item.photoId}
-            onChange={(photoId) => updateItem(item.id, { photoId })}
-          />
-          <input
-            type="text"
-            value={item.description}
-            onChange={(e) => updateItem(item.id, { description: e.target.value })}
-            placeholder="Describe the work…"
-            className={inputClass("px-3 sm:hidden")}
-          />
-        </div>
-        <input
-          type="text"
-          value={item.description}
-          onChange={(e) => updateItem(item.id, { description: e.target.value })}
-          placeholder="Describe the work…"
-          className={inputClass("px-3 hidden sm:block")}
-        />
-        <input
-          type="number"
-          value={item.quantity}
-          onChange={(e) => updateItem(item.id, { quantity: e.target.value })}
-          placeholder="0"
-          min="0"
-          className={inputClass("pl-3 pr-2")}
-        />
-        <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
-            $
-          </span>
-          <input
-            type="number"
-            value={item.unitCost}
-            onChange={(e) => updateItem(item.id, { unitCost: e.target.value })}
-            placeholder={hintFor(item.description).replace("$", "")}
-            min="0"
-            className={inputClass("pl-6 pr-2")}
-          />
-        </div>
-        <div className="text-right">
-          <span
-            className={`font-medium tabular-nums text-sm ${
-              total > 0 ? "text-slate-100" : "text-slate-600"
-            }`}
-          >
-            {usd(total)}
-          </span>
-          <span className="block text-[10px] text-slate-600 leading-none">
-            {item.unit !== "job" || total > 0 ? `per ${item.unit}` : ""}
-          </span>
-        </div>
-        <button
-          onClick={() => removeItem(item.id)}
-          title="Remove item"
-          className="justify-self-end sm:justify-self-center text-slate-600 hover:text-red-400 transition-colors text-sm px-1"
-        >
-          ✕
-        </button>
-      </div>
-    );
-  }
 
   const colLabels = (
     <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 px-5 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-medium">
@@ -292,7 +351,7 @@ export default function ScopeBuilder({
                 {colLabels}
                 <div className="px-4 sm:px-5 pb-4 space-y-2">
                   {sectionItems.map((item) => (
-                    <ItemRow key={item.id} item={item} />
+                    <ItemRow key={item.id} item={item} onUpdate={updateItem} onRemove={removeItem} />
                   ))}
                   <button
                     onClick={() => addSectionItem(section.key)}
@@ -363,7 +422,7 @@ export default function ScopeBuilder({
                 {colLabels}
                 <div className="px-4 sm:px-5 pb-4 space-y-2">
                   {roomItems.map((item) => (
-                    <ItemRow key={item.id} item={item} />
+                    <ItemRow key={item.id} item={item} onUpdate={updateItem} onRemove={removeItem} />
                   ))}
                   <button
                     onClick={() => addRoomLine(room)}

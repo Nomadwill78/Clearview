@@ -6,7 +6,7 @@ interface TemplateRow {
   category: string;
   description: string;
   unit: string;
-  hint: string; // typical cost range shown as a placeholder
+  hint: string; // typical cost range shown as helper text under Unit Cost
 }
 
 // Exhaustive default line items spanning a full property walkthrough.
