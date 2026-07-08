@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 // Freemium plan state.
 //
@@ -37,17 +37,15 @@ export function setPlan(plan: Plan): void {
   }
 }
 
+function subscribePlan(callback: () => void): () => void {
+  window.addEventListener("flipos-plan-change", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("flipos-plan-change", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
 export function usePlan(): Plan {
-  const [plan, setPlanState] = useState<Plan>("free");
-  useEffect(() => {
-    setPlanState(getPlan());
-    const update = () => setPlanState(getPlan());
-    window.addEventListener("flipos-plan-change", update);
-    window.addEventListener("storage", update);
-    return () => {
-      window.removeEventListener("flipos-plan-change", update);
-      window.removeEventListener("storage", update);
-    };
-  }, []);
-  return plan;
+  return useSyncExternalStore(subscribePlan, getPlan, () => "free");
 }

@@ -34,6 +34,7 @@ export default function FlipOSApp() {
     const checkout = params.get("checkout");
     if (checkout === "success") {
       setPlan("pro");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWelcomePro(true);
     }
     if (checkout) {
@@ -47,7 +48,7 @@ export default function FlipOSApp() {
   useEffect(() => {
     const saved = loadDeals();
     if (saved.length > 0) {
-      setDeals(saved);
+      setDeals(saved); // eslint-disable-line react-hooks/set-state-in-effect
       setActiveId(saved[0].id);
     } else {
       const d = newDeal();

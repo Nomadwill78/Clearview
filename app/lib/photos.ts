@@ -107,11 +107,8 @@ export async function savePhotoFromFile(
 export function usePhoto(photoId: string | null | undefined): string | null {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   useEffect(() => {
+    if (!photoId) return;
     let cancelled = false;
-    if (!photoId) {
-      setDataUrl(null);
-      return;
-    }
     getPhoto(photoId).then((url) => {
       if (!cancelled) setDataUrl(url);
     });
@@ -119,5 +116,6 @@ export function usePhoto(photoId: string | null | undefined): string | null {
       cancelled = true;
     };
   }, [photoId]);
-  return dataUrl;
+  // When photoId is absent, always return null (avoids setState(null) in effect)
+  return photoId ? dataUrl : null;
 }

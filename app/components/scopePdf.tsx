@@ -201,6 +201,7 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
           <Text style={styles.date}>Prepared {today}</Text>
         </View>
 
+        {/* eslint-disable-next-line jsx-a11y/alt-text */}
         {photos.main && <Image style={styles.mainPhoto} src={photos.main} />}
 
         {/* Groups: fixed areas first, then user-added rooms */}
@@ -233,6 +234,7 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
                     <Text style={styles.colCategory}>{item.category}</Text>
                     <View style={styles.colDesc}>
                       <Text>{item.description || "—"}</Text>
+                      {/* eslint-disable-next-line jsx-a11y/alt-text */}
                       {photo && <Image style={styles.itemPhoto} src={photo} />}
                     </View>
                     <Text style={styles.colQty}>{fmtQty(item)}</Text>
