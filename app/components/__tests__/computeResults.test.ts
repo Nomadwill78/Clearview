@@ -119,6 +119,13 @@ describe("computeResults — cash deal", () => {
     expect(r.dailyHoldingCost).toBeCloseTo(CASH_DAILY);
   });
 
+  it("cash deal has zero daily interest and points", () => {
+    const r = computeResults(BASE, null)!;
+    expect(r.dailyCarry).toBeCloseTo(CASH_DAILY);
+    expect(r.dailyInterest).toBe(0);
+    expect(r.dailyPoints).toBe(0);
+  });
+
   it("costStack.purchasePrice equals the input value", () => {
     const r = computeResults(BASE, null)!;
     expect(r.costStack.purchasePrice).toBe(250000);
@@ -188,6 +195,14 @@ describe("computeResults — hard money financing", () => {
     const interest = 250000 * (12 / 100) * (90 / 365);
     const points = 250000 * 0.02;
     expect(r.dailyHoldingCost).toBeCloseTo((carry + interest + points) / 90);
+  });
+
+  it("breaks daily holding cost into carry, interest, and points per day", () => {
+    const r = computeResults(HM, null)!;
+    expect(r.dailyCarry).toBeCloseTo((250000 * 0.005 * 3) / 90);
+    expect(r.dailyInterest).toBeCloseTo((250000 * (12 / 100) * (90 / 365)) / 90);
+    expect(r.dailyPoints).toBeCloseTo((250000 * 0.02) / 90);
+    expect(r.dailyCarry + r.dailyInterest + r.dailyPoints).toBeCloseTo(r.dailyHoldingCost);
   });
 
   it("hard money deal has lower gross profit than equivalent cash deal", () => {

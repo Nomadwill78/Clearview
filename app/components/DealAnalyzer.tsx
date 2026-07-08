@@ -22,6 +22,10 @@ export interface Results {
   maxAllowable: number;
   seventyPctPasses: boolean;
   dailyHoldingCost: number;
+  // Per-day components of dailyHoldingCost, for the card breakdown
+  dailyCarry: number;
+  dailyInterest: number;
+  dailyPoints: number;
   netAfterTax: number;
   arvPct: number;
   costPct: number;
@@ -77,6 +81,9 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
     maxAllowable,
     seventyPctPasses: pp <= maxAllowable,
     dailyHoldingCost,
+    dailyCarry: carry / days,
+    dailyInterest: hmInterest / days,
+    dailyPoints: hmPointsCost / days,
     netAfterTax,
     arvPct,
     costPct,
@@ -89,6 +96,17 @@ function usd(n: number): string {
     currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+  }).format(n);
+}
+
+// Exact dollars-and-cents, for small per-day figures where rounding to whole
+// dollars would hide the number the user is sanity-checking against.
+function usdExact(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n);
 }
 
@@ -506,12 +524,22 @@ export default function DealAnalyzer({
                   </span>
                   <span className="text-sm font-semibold text-slate-200">Daily Hold Cost</span>
                 </div>
-                <div className="text-xs text-slate-500 mb-1">Carry + financing per day</div>
+                <div className="text-xs text-slate-500 mb-1">
+                  {form.financingType === "hardmoney" ? "Carry + financing per day" : "Carry costs per day"}
+                </div>
                 <div className="text-base font-bold tabular-nums text-amber-300">
                   {usd(results.dailyHoldingCost)}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
-                  × {form.holdingDays} days
+                  {form.financingType === "hardmoney" ? (
+                    <>
+                      Carry {usdExact(results.dailyCarry)} · Interest {usdExact(results.dailyInterest)}
+                      {results.dailyPoints > 0 && <> · Points {usdExact(results.dailyPoints)}</>}
+                      {" "}/day × {form.holdingDays} days
+                    </>
+                  ) : (
+                    <>× {form.holdingDays} days</>
+                  )}
                 </div>
               </div>
             </div>
