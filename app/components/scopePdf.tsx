@@ -134,6 +134,21 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   footerText: { fontSize: 8, color: SLATE_LIGHT },
+  watermarkWrap: {
+    position: "absolute",
+    top: 320,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  watermark: {
+    fontSize: 58,
+    fontFamily: "Helvetica-Bold",
+    color: SLATE_LIGHT,
+    opacity: 0.13,
+    letterSpacing: 3,
+    transform: "rotate(-24deg)",
+  },
 });
 
 function usd(n: number): string {
@@ -157,7 +172,15 @@ interface PhotoBundle {
   byItemId: Record<string, string>;
 }
 
-function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
+function ScopeDocument({
+  deal,
+  photos,
+  watermark = false,
+}: {
+  deal: Deal;
+  photos: PhotoBundle;
+  watermark?: boolean;
+}) {
   // Only items priced into the budget appear on the contractor document
   const included = deal.scopeItems.filter((it) => itemTotal(it) > 0);
   const subtotal = scopeSubtotal(included);
@@ -189,6 +212,13 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
   return (
     <Document title={`Scope of Work — ${address}`} author="FlipOS">
       <Page size="LETTER" style={styles.page}>
+        {/* Free-plan sample watermark — painted first so content sits on top */}
+        {watermark && (
+          <View style={styles.watermarkWrap} fixed>
+            <Text style={styles.watermark}>FLIPOS SAMPLE</Text>
+          </View>
+        )}
+
         {/* Header */}
         <View style={styles.headerBar} fixed>
           <Text style={styles.brand}>
@@ -271,7 +301,8 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            Scope of Work · {address}
+            {watermark ? "Sample export — FlipOS free plan · " : "Scope of Work · "}
+            {address}
           </Text>
           <Text
             style={styles.footerText}
@@ -283,7 +314,11 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
   );
 }
 
-export async function downloadScopePdf(deal: Deal): Promise<void> {
+export async function downloadScopePdf(
+  deal: Deal,
+  opts: { watermark?: boolean } = {}
+): Promise<void> {
+  const watermark = opts.watermark ?? false;
   // Resolve photos from IndexedDB before rendering
   const photos: PhotoBundle = { main: null, byItemId: {} };
   if (deal.mainPhotoId) photos.main = await getPhoto(deal.mainPhotoId);
@@ -296,14 +331,16 @@ export async function downloadScopePdf(deal: Deal): Promise<void> {
       })
   );
 
-  const blob = await pdf(<ScopeDocument deal={deal} photos={photos} />).toBlob();
+  const blob = await pdf(
+    <ScopeDocument deal={deal} photos={photos} watermark={watermark} />
+  ).toBlob();
   const safeAddress =
     deal.form.address.trim().replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") ||
     "scope-of-work";
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `FlipOS-Scope-${safeAddress}.pdf`;
+  link.download = `FlipOS-Scope-${safeAddress}${watermark ? "-SAMPLE" : ""}.pdf`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

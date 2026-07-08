@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Deal, ScopeItem, CustomRoom } from "@/app/lib/types";
-import { scopeTotal } from "@/app/lib/types";
+import { scopeTotal, itemTotal } from "@/app/lib/types";
 import { loadDeals, saveDeals, newDeal, dealLabel } from "@/app/lib/storage";
 import { deletePhoto } from "@/app/lib/photos";
-import { usePlan, setPlan, FREE_DEAL_LIMIT, type Plan } from "@/app/lib/plan";
+import {
+  usePlan,
+  setPlan,
+  FREE_DEAL_LIMIT,
+  readFreePdfExports,
+  markFreePdfExportUsed,
+  type Plan,
+} from "@/app/lib/plan";
 import { authEnabled } from "@/app/lib/authConfig";
 import { AuthControls, AccountPlanSync } from "@/app/components/AuthControls";
 import DealAnalyzer, { computeResults } from "@/app/components/DealAnalyzer";
@@ -23,6 +30,9 @@ export default function FlipOSApp() {
   const [pricingReason, setPricingReason] = useState<"deals" | "pdf" | null>(null);
   const [welcomePro, setWelcomePro] = useState(false);
   const [accountPlan, setAccountPlan] = useState<Plan | null>(null);
+  // Which deals have used their one free watermarked sample export
+  const [freePdfUsed, setFreePdfUsed] = useState<Record<string, boolean>>({});
+  const [sampleExported, setSampleExported] = useState(false);
   const plan = usePlan();
   // Pro if paid on this device OR the signed-in account is Pro
   const isPro = plan === "pro" || accountPlan === "pro";
@@ -55,6 +65,7 @@ export default function FlipOSApp() {
       setDeals([d]);
       setActiveId(d.id);
     }
+    setFreePdfUsed(readFreePdfExports());
     loaded.current = true;
   }, []);
 
@@ -108,17 +119,29 @@ export default function FlipOSApp() {
   }
 
   async function handleExportPdf() {
-    if (!isPro) {
+    if (!activeDeal || exporting) return;
+    const sample = !isPro;
+    // Free plan: one watermarked sample per deal, then the paywall
+    if (sample && freePdfUsed[activeDeal.id]) {
       setPricingReason("pdf");
       setPricingOpen(true);
       return;
     }
-    if (!activeDeal || exporting) return;
+    // Don't let anyone (especially a one-shot sample) export an empty scope
+    if (!activeDeal.scopeItems.some((it) => itemTotal(it) > 0)) {
+      window.alert("Price at least one line item first — the PDF only includes priced work.");
+      return;
+    }
     setExporting(true);
     try {
       // PDF library loads only when needed — keeps the app fast
       const { downloadScopePdf } = await import("@/app/components/scopePdf");
-      await downloadScopePdf(activeDeal);
+      await downloadScopePdf(activeDeal, { watermark: sample });
+      if (sample) {
+        markFreePdfExportUsed(activeDeal.id);
+        setFreePdfUsed((m) => ({ ...m, [activeDeal.id]: true }));
+        setSampleExported(true);
+      }
     } catch (err) {
       console.error("PDF export failed", err);
       window.alert("Sorry — the PDF export failed. Please try again.");
@@ -246,11 +269,45 @@ export default function FlipOSApp() {
               disabled={exporting}
               className="my-1 px-3 text-xs font-semibold rounded-lg border border-amber-700/60 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
             >
-              {exporting ? "Building PDF…" : isPro ? "⤓ Export PDF for GCs" : "⤓ Export PDF 🔒"}
+              {exporting
+                ? "Building PDF…"
+                : isPro
+                ? "⤓ Export PDF for GCs"
+                : freePdfUsed[activeDeal.id]
+                ? "⤓ Export PDF 🔒"
+                : "⤓ Free sample PDF"}
             </button>
           )}
         </div>
       </header>
+
+      {sampleExported && !isPro && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3">
+            <p className="text-sm text-amber-200/90">
+              📄 Your sample scope PDF downloaded — that&apos;s exactly what your contractor
+              gets. Go Pro to remove the watermark and export every deal, every revision.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setPricingReason("pdf");
+                  setPricingOpen(true);
+                }}
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 transition-colors"
+              >
+                Remove watermark
+              </button>
+              <button
+                onClick={() => setSampleExported(false)}
+                className="text-amber-600 hover:text-amber-300 text-sm px-1"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {welcomePro && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">

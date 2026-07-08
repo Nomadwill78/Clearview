@@ -49,3 +49,30 @@ function subscribePlan(callback: () => void): () => void {
 export function usePlan(): Plan {
   return useSyncExternalStore(subscribePlan, getPlan, () => "free");
 }
+
+// ── Free sample PDF exports ───────────────────────────────────────────────────
+// The free plan gets one watermarked "sample" scope PDF per deal, so users can
+// experience the contractor handoff workflow before upgrading.
+
+const FREE_PDF_KEY = "flipos.freePdfExports.v1";
+
+export function readFreePdfExports(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(FREE_PDF_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markFreePdfExportUsed(dealId: string): void {
+  try {
+    const map = readFreePdfExports();
+    map[dealId] = true;
+    window.localStorage.setItem(FREE_PDF_KEY, JSON.stringify(map));
+  } catch {
+    // ignore — worst case the user gets another sample
+  }
+}

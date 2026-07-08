@@ -17,11 +17,12 @@ const FREE_FEATURES = [
   "Full Deal Analyzer (ROI, 70% rule, cost stack)",
   "Scope Builder with all three tiers",
   "Property & scope item photos",
+  "1 free watermarked sample PDF per deal",
 ];
 
 const PRO_FEATURES = [
   "Unlimited deals",
-  "PDF scope-of-work export for contractors",
+  "Unlimited watermark-free scope PDFs",
   "Photos embedded in PDF bids",
   "Cloud sync across devices (coming soon)",
   "Priority support",
@@ -38,7 +39,7 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
     reason === "deals"
       ? "You've hit the free plan's deal limit"
       : reason === "pdf"
-      ? "PDF export is a Pro feature"
+      ? "You've seen the sample — go watermark-free"
       : "Upgrade to FlipOS Pro";
 
   async function handleUpgrade() {
