@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { DealForm, FinancingType } from "@/app/lib/types";
+import { parseUserNumber } from "@/app/lib/types";
 import { MainPhotoPicker } from "@/app/components/PhotoPicker";
 
 interface CostStack {
@@ -13,6 +14,15 @@ interface CostStack {
   hardMoneyInterest: number;
   hardMoneyPointsCost: number;
   total: number;
+}
+
+// Effective percents used in the math — echoes overrides or defaults so
+// labels always describe the numbers actually applied.
+export interface Assumptions {
+  buyClosingPct: number;
+  sellClosingPct: number;
+  monthlyCarryPct: number;
+  taxRatePct: number;
 }
 
 export interface Results {
@@ -29,12 +39,23 @@ export interface Results {
   netAfterTax: number;
   arvPct: number;
   costPct: number;
+  assumptions: Assumptions;
 }
 
-const BUY_CLOSING_PCT = 0.015;
-const SELL_CLOSING_PCT = 0.08;
-const MONTHLY_CARRY_PCT = 0.005;
-const TAX_RATE = 0.32;
+// National-average defaults, used when a deal doesn't override them.
+export const DEFAULT_ASSUMPTIONS: Assumptions = {
+  buyClosingPct: 1.5,
+  sellClosingPct: 8,
+  monthlyCarryPct: 0.5,
+  taxRatePct: 32,
+};
+
+// Effective percent for an editable assumption: blank or invalid input falls
+// back to the default; values are capped at 100%.
+function assumptionPct(raw: string | undefined, fallback: number): number {
+  const n = parseUserNumber(raw ?? "");
+  return n === null ? fallback : Math.min(n, 100);
+}
 
 export function computeResults(form: DealForm, rehabFromScope: number | null): Results | null {
   const pp = parseFloat(form.purchasePrice);
@@ -46,10 +67,17 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
   if ([pp, rehab, arv, days].some((v) => isNaN(v) || v < 0)) return null;
   if (pp <= 0 || arv <= 0 || days <= 0) return null;
 
+  const assumptions: Assumptions = {
+    buyClosingPct: assumptionPct(form.buyClosingPct, DEFAULT_ASSUMPTIONS.buyClosingPct),
+    sellClosingPct: assumptionPct(form.sellClosingPct, DEFAULT_ASSUMPTIONS.sellClosingPct),
+    monthlyCarryPct: assumptionPct(form.monthlyCarryPct, DEFAULT_ASSUMPTIONS.monthlyCarryPct),
+    taxRatePct: assumptionPct(form.taxRatePct, DEFAULT_ASSUMPTIONS.taxRatePct),
+  };
+
   const months = days / 30;
-  const buyClose = pp * BUY_CLOSING_PCT;
-  const sellClose = arv * SELL_CLOSING_PCT;
-  const carry = pp * MONTHLY_CARRY_PCT * months;
+  const buyClose = pp * (assumptions.buyClosingPct / 100);
+  const sellClose = arv * (assumptions.sellClosingPct / 100);
+  const carry = pp * (assumptions.monthlyCarryPct / 100) * months;
 
   const hmRate = Math.max(0, parseFloat(form.hardMoneyRate) || 0);
   const hmPts = Math.max(0, parseFloat(form.hardMoneyPoints) || 0);
@@ -61,7 +89,8 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
   const roi = (grossProfit / total) * 100;
   const maxAllowable = arv * 0.7 - rehab;
   const dailyHoldingCost = (carry + hmInterest + hmPointsCost) / days;
-  const netAfterTax = grossProfit > 0 ? grossProfit * (1 - TAX_RATE) : grossProfit;
+  const netAfterTax =
+    grossProfit > 0 ? grossProfit * (1 - assumptions.taxRatePct / 100) : grossProfit;
   const costPct = (total / arv) * 100;
   const arvPct = Math.max(0, Math.min(100, costPct));
 
@@ -87,6 +116,7 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
     netAfterTax,
     arvPct,
     costPct,
+    assumptions,
   };
 }
 
@@ -123,6 +153,40 @@ function LabelText({ children }: { children: React.ReactNode }) {
     <span className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-medium">
       {children}
     </span>
+  );
+}
+
+function AssumptionField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <span className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider font-medium">
+        {label}
+      </span>
+      <div className="relative">
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          min="0"
+          step="0.5"
+          className={inputClass("pl-3 pr-7")}
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
+          %
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -357,11 +421,56 @@ export default function DealAnalyzer({
           )}
         </div>
 
-        {/* Assumptions note */}
+        {/* Editable assumptions */}
         <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <p className="text-xs text-slate-500 leading-relaxed">
-            <span className="text-slate-400 font-medium">Assumptions: </span>
-            Buy closing 1.5% · Sell closing 8% of ARV · Carry costs 0.5%/mo of purchase price · Tax rate 32%
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+              Assumptions
+            </p>
+            <button
+              onClick={() =>
+                onFormChange({
+                  ...form,
+                  buyClosingPct: "",
+                  sellClosingPct: "",
+                  monthlyCarryPct: "",
+                  taxRatePct: "",
+                })
+              }
+              className="text-[10px] font-medium text-slate-500 hover:text-amber-400 transition-colors"
+            >
+              Reset defaults
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <AssumptionField
+              label="Buy closing"
+              value={form.buyClosingPct ?? ""}
+              placeholder={String(DEFAULT_ASSUMPTIONS.buyClosingPct)}
+              onChange={(v) => onFormChange({ ...form, buyClosingPct: v })}
+            />
+            <AssumptionField
+              label="Sell closing"
+              value={form.sellClosingPct ?? ""}
+              placeholder={String(DEFAULT_ASSUMPTIONS.sellClosingPct)}
+              onChange={(v) => onFormChange({ ...form, sellClosingPct: v })}
+            />
+            <AssumptionField
+              label="Carry / mo"
+              value={form.monthlyCarryPct ?? ""}
+              placeholder={String(DEFAULT_ASSUMPTIONS.monthlyCarryPct)}
+              onChange={(v) => onFormChange({ ...form, monthlyCarryPct: v })}
+            />
+            <AssumptionField
+              label="Tax rate"
+              value={form.taxRatePct ?? ""}
+              placeholder={String(DEFAULT_ASSUMPTIONS.taxRatePct)}
+              onChange={(v) => onFormChange({ ...form, taxRatePct: v })}
+            />
+          </div>
+          <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">
+            Sell closing (% of ARV) covers agent commission plus transfer taxes &amp; fees — tune
+            it to your market. Blank fields use the defaults shown.
           </p>
         </div>
       </section>
@@ -381,10 +490,16 @@ export default function DealAnalyzer({
                   label={scopeLinked ? "Rehab Budget (from scope)" : "Rehab Budget"}
                   value={results.costStack.rehabBudget}
                 />
-                <CostRow label="Buy Closing Costs (1.5%)" value={results.costStack.buyClosingCosts} />
-                <CostRow label="Sell Closing Costs (8% ARV)" value={results.costStack.sellClosingCosts} />
                 <CostRow
-                  label={`Carrying Costs (0.5%/mo × ${parseFloat(form.holdingDays) > 0 ? (parseFloat(form.holdingDays) / 30).toFixed(1) : "0"}mo)`}
+                  label={`Buy Closing Costs (${results.assumptions.buyClosingPct}%)`}
+                  value={results.costStack.buyClosingCosts}
+                />
+                <CostRow
+                  label={`Sell Closing Costs (${results.assumptions.sellClosingPct}% ARV)`}
+                  value={results.costStack.sellClosingCosts}
+                />
+                <CostRow
+                  label={`Carrying Costs (${results.assumptions.monthlyCarryPct}%/mo × ${parseFloat(form.holdingDays) > 0 ? (parseFloat(form.holdingDays) / 30).toFixed(1) : "0"}mo)`}
                   value={results.costStack.carryingCosts}
                 />
                 {isHM && (
@@ -454,7 +569,7 @@ export default function DealAnalyzer({
                   label: "Net After Tax",
                   value: usd(results.netAfterTax),
                   positive: results.netAfterTax > 0,
-                  sub: "32% tax rate",
+                  sub: `${results.assumptions.taxRatePct}% tax rate`,
                 },
               ].map(({ label, value, positive, sub }) => (
                 <div

@@ -9,6 +9,13 @@ export interface DealForm {
   financingType: FinancingType;
   hardMoneyRate: string;
   hardMoneyPoints: string;
+  // Editable market assumptions, stored as percent strings. Optional for
+  // back-compat with deals saved before they were customizable; blank or
+  // invalid values fall back to the defaults in DealAnalyzer.
+  buyClosingPct?: string;
+  sellClosingPct?: string;
+  monthlyCarryPct?: string;
+  taxRatePct?: string;
 }
 
 export type Tier = 1 | 2 | 3;

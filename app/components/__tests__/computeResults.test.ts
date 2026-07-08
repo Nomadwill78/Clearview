@@ -222,6 +222,59 @@ describe("computeResults — hard money financing", () => {
   });
 });
 
+// ── Custom assumptions ────────────────────────────────────────────────────────
+
+describe("computeResults — custom assumptions", () => {
+  it("uses default assumptions when the fields are absent (older deals)", () => {
+    const r = computeResults(BASE, null)!;
+    expect(r.assumptions).toEqual({
+      buyClosingPct: 1.5,
+      sellClosingPct: 8,
+      monthlyCarryPct: 0.5,
+      taxRatePct: 32,
+    });
+    expect(r.costStack.sellClosingCosts).toBeCloseTo(380000 * 0.08);
+  });
+
+  it("applies a custom sell closing percentage (e.g. 6% market)", () => {
+    const r = computeResults({ ...BASE, sellClosingPct: "6" }, null)!;
+    expect(r.assumptions.sellClosingPct).toBe(6);
+    expect(r.costStack.sellClosingCosts).toBeCloseTo(380000 * 0.06);
+    // total drops by the 2-point difference
+    expect(r.costStack.total).toBeCloseTo(CASH_TOTAL - 380000 * 0.02);
+  });
+
+  it("applies custom buy closing and carry percentages", () => {
+    const r = computeResults({ ...BASE, buyClosingPct: "2", monthlyCarryPct: "1" }, null)!;
+    expect(r.costStack.buyClosingCosts).toBeCloseTo(250000 * 0.02);
+    expect(r.costStack.carryingCosts).toBeCloseTo(250000 * 0.01 * 3);
+  });
+
+  it("applies a custom tax rate to net after tax", () => {
+    const r = computeResults({ ...BASE, taxRatePct: "25" }, null)!;
+    expect(r.netAfterTax).toBeCloseTo(r.grossProfit * 0.75);
+  });
+
+  it("falls back to defaults for blank or invalid overrides", () => {
+    const blank = computeResults({ ...BASE, sellClosingPct: "" }, null)!;
+    const junk = computeResults({ ...BASE, sellClosingPct: "abc" }, null)!;
+    const negative = computeResults({ ...BASE, sellClosingPct: "-4" }, null)!;
+    for (const r of [blank, junk, negative]) {
+      expect(r.assumptions.sellClosingPct).toBe(8);
+    }
+  });
+
+  it("caps overrides at 100%", () => {
+    const r = computeResults({ ...BASE, taxRatePct: "150" }, null)!;
+    expect(r.assumptions.taxRatePct).toBe(100);
+  });
+
+  it("custom assumptions flow through to daily holding cost", () => {
+    const r = computeResults({ ...BASE, monthlyCarryPct: "1" }, null)!;
+    expect(r.dailyHoldingCost).toBeCloseTo((250000 * 0.01 * 3) / 90);
+  });
+});
+
 // ── Loss scenario ─────────────────────────────────────────────────────────────
 
 describe("computeResults — loss scenario", () => {
