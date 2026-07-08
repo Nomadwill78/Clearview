@@ -128,10 +128,23 @@ export function itemSection(item: ScopeItem): SectionKey {
 
 export const CONTINGENCY_PCT = 0.15;
 
+// Parse a user-entered quantity or unit cost. Accepts plain numbers plus
+// common money formatting ("$8,500", "1,200.50", " 15 "). Returns null when
+// the text is empty or not a single non-negative number, so callers can tell
+// "not entered / invalid" apart from a real 0. Every place that turns a
+// ScopeItem string into math must go through this so the field, the row
+// total, and the PDF always agree.
+export function parseUserNumber(raw: string): number | null {
+  const cleaned = raw.trim().replace(/[$,]/g, "");
+  if (cleaned === "") return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 export function itemTotal(item: ScopeItem): number {
-  const qty = parseFloat(item.quantity);
-  const cost = parseFloat(item.unitCost);
-  if (isNaN(qty) || isNaN(cost) || qty < 0 || cost < 0) return 0;
+  const qty = parseUserNumber(item.quantity);
+  const cost = parseUserNumber(item.unitCost);
+  if (qty === null || cost === null) return 0;
   return qty * cost;
 }
 

@@ -7,6 +7,7 @@ import {
   CONTINGENCY_PCT,
   itemTotal,
   itemSection,
+  parseUserNumber,
   scopeSubtotal,
   sectionSubtotal,
   roomSubtotal,
@@ -38,6 +39,8 @@ const TIER_DOT: Record<Tier, string> = {
 
 // Numeric input that keeps a local draft while typing and commits on change and
 // again on blur — Enter and Tab both leave the field, so all three paths commit.
+// type="text" (not "number") so pasted money formatting like "$8,500" reaches
+// our parser instead of being silently discarded by the browser's number widget.
 function NumberField({
   value,
   onCommit,
@@ -57,11 +60,12 @@ function NumberField({
     if (!focused.current) setDraft(value);
   }, [value]);
 
+  const invalid = draft.trim() !== "" && parseUserNumber(draft) === null;
+
   return (
     <input
-      type="number"
+      type="text"
       inputMode="decimal"
-      min="0"
       value={draft}
       placeholder={placeholder}
       onChange={(e) => {
@@ -73,12 +77,20 @@ function NumberField({
       }}
       onBlur={(e) => {
         focused.current = false;
-        onCommit(e.target.value);
+        // Normalize valid entries ("$8,500" → "8500") so the field, the stored
+        // value, and the math always agree; invalid text is kept and flagged.
+        const parsed = parseUserNumber(e.target.value);
+        const committed = parsed === null ? e.target.value : String(parsed);
+        setDraft(committed);
+        onCommit(committed);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className={className}
+      aria-invalid={invalid || undefined}
+      className={`${className} ${
+        invalid ? "!border-red-500 focus:!border-red-500 focus:!ring-red-500" : ""
+      }`}
     />
   );
 }
@@ -96,8 +108,15 @@ function ItemRow({
   onRemove: (id: string) => void;
 }) {
   const total = itemTotal(item);
+  const qty = parseUserNumber(item.quantity);
+  const cost = parseUserNumber(item.unitCost);
+  const qtyInvalid = item.quantity.trim() !== "" && qty === null;
+  const costInvalid = item.unitCost.trim() !== "" && cost === null;
+  // Explain a $0 total: one side is priced but the other is missing.
+  const needsQty = !qtyInvalid && cost !== null && cost > 0 && (qty === null || qty === 0);
+  const needsCost = !costInvalid && qty !== null && qty > 0 && cost === null;
   const hint = hintFor(item.description);
-  const showHint = hint !== "0" && item.unitCost.trim() === "";
+  const showTypical = hint !== "0" && item.unitCost.trim() === "";
   return (
     <div className="grid grid-cols-2 sm:grid-cols-[2.5rem_1fr_5rem_6.5rem_6rem_2rem] gap-2 items-center bg-slate-950/40 sm:bg-transparent rounded-lg sm:rounded-none p-2.5 sm:p-0">
       <div className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:block">
@@ -120,12 +139,20 @@ function ItemRow({
         placeholder="Describe the work…"
         className={inputClass("px-3 hidden sm:block")}
       />
-      <NumberField
-        value={item.quantity}
-        onCommit={(quantity) => onUpdate(item.id, { quantity })}
-        placeholder="0"
-        className={inputClass("pl-3 pr-2")}
-      />
+      <div>
+        <NumberField
+          value={item.quantity}
+          onCommit={(quantity) => onUpdate(item.id, { quantity })}
+          placeholder="0"
+          className={inputClass("pl-3 pr-2")}
+        />
+        {qtyInvalid && (
+          <p className="mt-1 text-[10px] leading-tight text-red-400">Enter a number</p>
+        )}
+        {needsQty && (
+          <p className="mt-1 text-[10px] leading-tight text-amber-500">Add qty</p>
+        )}
+      </div>
       <div>
         <div className="relative">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">
@@ -137,9 +164,15 @@ function ItemRow({
             className={inputClass("pl-6 pr-2")}
           />
         </div>
-        {showHint && (
+        {costInvalid ? (
+          <p className="mt-1 text-[10px] leading-tight text-red-400">Enter a number</p>
+        ) : needsCost ? (
+          <p className="mt-1 text-[10px] leading-tight text-amber-500">
+            Add cost{hint !== "0" ? ` — typical ${hint}` : ""}
+          </p>
+        ) : showTypical ? (
           <p className="mt-1 text-[10px] leading-tight text-slate-500">Typical {hint}</p>
-        )}
+        ) : null}
       </div>
       <div className="text-right">
         <span

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  parseUserNumber,
   itemTotal,
   scopeSubtotal,
   scopeTotal,
@@ -26,6 +27,42 @@ function makeItem(overrides: Partial<ScopeItem> = {}): ScopeItem {
     ...overrides,
   };
 }
+
+// ── parseUserNumber ───────────────────────────────────────────────────────────
+
+describe("parseUserNumber", () => {
+  it("parses plain integers and decimals", () => {
+    expect(parseUserNumber("15")).toBe(15);
+    expect(parseUserNumber("12.5")).toBe(12.5);
+    expect(parseUserNumber("0")).toBe(0);
+  });
+
+  it("strips money formatting ($ and commas)", () => {
+    expect(parseUserNumber("$8,500")).toBe(8500);
+    expect(parseUserNumber("1,200.50")).toBe(1200.5);
+    expect(parseUserNumber("$600")).toBe(600);
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(parseUserNumber(" 15 ")).toBe(15);
+  });
+
+  it("returns null for empty or whitespace-only input", () => {
+    expect(parseUserNumber("")).toBeNull();
+    expect(parseUserNumber("   ")).toBeNull();
+  });
+
+  it("returns null for non-numeric input", () => {
+    expect(parseUserNumber("abc")).toBeNull();
+    expect(parseUserNumber("8abc")).toBeNull();
+    expect(parseUserNumber("1 200")).toBeNull();
+  });
+
+  it("returns null for negative numbers", () => {
+    expect(parseUserNumber("-5")).toBeNull();
+    expect(parseUserNumber("-$500")).toBeNull();
+  });
+});
 
 // ── itemTotal ─────────────────────────────────────────────────────────────────
 
@@ -62,6 +99,16 @@ describe("itemTotal", () => {
 
   it("handles decimal values", () => {
     expect(itemTotal(makeItem({ quantity: "1.5", unitCost: "200" }))).toBeCloseTo(300);
+  });
+
+  it("handles money-formatted values (pasted quotes)", () => {
+    expect(itemTotal(makeItem({ quantity: "2", unitCost: "$1,500" }))).toBe(3000);
+    expect(itemTotal(makeItem({ quantity: "1,000", unitCost: "2" }))).toBe(2000);
+  });
+
+  it("returns 0 (not a partial parse) for trailing junk", () => {
+    // parseFloat("3abc") would have returned 3 — the strict parser must not.
+    expect(itemTotal(makeItem({ quantity: "3abc", unitCost: "500" }))).toBe(0);
   });
 });
 

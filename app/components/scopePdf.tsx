@@ -7,6 +7,7 @@ import {
   CONTINGENCY_PCT,
   itemTotal,
   itemSection,
+  parseUserNumber,
   scopeSubtotal,
 } from "@/app/lib/types";
 import { getPhoto } from "@/app/lib/photos";
@@ -145,8 +146,8 @@ function usd(n: number): string {
 }
 
 function fmtQty(item: ScopeItem): string {
-  const qty = parseFloat(item.quantity);
-  if (isNaN(qty) || qty <= 0) return "—";
+  const qty = parseUserNumber(item.quantity);
+  if (qty === null || qty <= 0) return "—";
   const label = item.unit && item.unit !== "job" ? ` ${item.unit}` : "";
   return `${qty.toLocaleString("en-US")}${label}`;
 }
@@ -238,7 +239,7 @@ function ScopeDocument({ deal, photos }: { deal: Deal; photos: PhotoBundle }) {
                       {photo && <Image style={styles.itemPhoto} src={photo} />}
                     </View>
                     <Text style={styles.colQty}>{fmtQty(item)}</Text>
-                    <Text style={styles.colUnit}>{usd(parseFloat(item.unitCost) || 0)}</Text>
+                    <Text style={styles.colUnit}>{usd(parseUserNumber(item.unitCost) ?? 0)}</Text>
                     <Text style={[styles.colTotal, { fontFamily: "Helvetica-Bold" }]}>
                       {usd(itemTotal(item))}
                     </Text>
