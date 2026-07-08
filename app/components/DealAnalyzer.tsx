@@ -488,6 +488,15 @@ export default function DealAnalyzer({
                 <div className="text-xs text-slate-600 mt-1">
                   (ARV × 70%) − Rehab
                 </div>
+                {!results.seventyPctPasses && (
+                  <div className="text-xs font-medium text-red-300 mt-1.5">
+                    {results.maxAllowable > 0
+                      ? `Negotiate ${usd(
+                          results.costStack.purchasePrice - results.maxAllowable
+                        )} off to pass`
+                      : "Rehab is too high — no purchase price passes at this ARV"}
+                  </div>
+                )}
               </div>
 
               <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
