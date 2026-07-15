@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+import fs from 'fs';
 import { KalshiAuthResponse, KalshiMarket, KalshiMarketsResponse } from './types';
 
 const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
@@ -5,24 +7,41 @@ const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
 export class KalshiClient {
   private token: string | null = null;
   private apiKeyId: string | null = null;
+  private privateKeyPem: string | null = null;
 
   constructor(
     private readonly email?: string,
     private readonly password?: string,
     apiKeyId?: string,
+    privateKeyPathOrPem?: string,
   ) {
     this.apiKeyId = apiKeyId ?? null;
+
+    if (privateKeyPathOrPem) {
+      // Accept either a file path or a raw PEM string
+      if (privateKeyPathOrPem.startsWith('-----BEGIN')) {
+        this.privateKeyPem = privateKeyPathOrPem;
+      } else {
+        this.privateKeyPem = fs.readFileSync(privateKeyPathOrPem, 'utf8');
+      }
+    }
   }
 
   async authenticate(): Promise<void> {
     if (this.apiKeyId) {
-      // API key auth — token isn't needed; auth header set per-request
+      if (!this.privateKeyPem) {
+        throw new Error(
+          'KALSHI_API_KEY_ID is set but KALSHI_PRIVATE_KEY_PATH (or KALSHI_PRIVATE_KEY) is missing.\n' +
+          'Set KALSHI_PRIVATE_KEY_PATH to the path of the .txt file Kalshi gave you.',
+        );
+      }
+      console.log('✓ Kalshi API-key auth ready (RSA signing enabled)');
       return;
     }
 
     if (!this.email || !this.password) {
       throw new Error(
-        'Provide KALSHI_EMAIL + KALSHI_PASSWORD, or KALSHI_API_KEY_ID in your .env',
+        'Provide KALSHI_EMAIL + KALSHI_PASSWORD, or KALSHI_API_KEY_ID + KALSHI_PRIVATE_KEY_PATH in your .env',
       );
     }
 
@@ -39,18 +58,35 @@ export class KalshiClient {
 
     const data = (await res.json()) as KalshiAuthResponse;
     this.token = data.token;
-    console.log('✓ Authenticated with Kalshi');
+    console.log('✓ Authenticated with Kalshi (email/password)');
   }
 
-  private authHeaders(): Record<string, string> {
+  private authHeaders(method: string, path: string): Record<string, string> {
     if (this.token) {
       return { Authorization: this.token };
     }
-    if (this.apiKeyId) {
-      // Basic API-key header — full HMAC signing can be added here if needed
-      return { 'KALSHI-ACCESS-KEY': this.apiKeyId };
+
+    if (this.apiKeyId && this.privateKeyPem) {
+      const timestamp = String(Date.now());
+      const signature = this.signRequest(timestamp, method, path);
+      return {
+        'KALSHI-ACCESS-KEY': this.apiKeyId,
+        'KALSHI-ACCESS-TIMESTAMP': timestamp,
+        'KALSHI-ACCESS-SIGNATURE': signature,
+      };
     }
+
     throw new Error('Not authenticated. Call authenticate() first.');
+  }
+
+  // Kalshi signature: RSA-SHA256 of "<timestamp><METHOD><path>"
+  // Path must be the raw path without query string, e.g. "/trade-api/v2/markets"
+  private signRequest(timestamp: string, method: string, path: string): string {
+    const message = timestamp + method.toUpperCase() + path;
+    const sign = crypto.createSign('SHA256');
+    sign.update(message);
+    sign.end();
+    return sign.sign(this.privateKeyPem!, 'base64');
   }
 
   async fetchOpenMarkets(options: {
@@ -62,6 +98,7 @@ export class KalshiClient {
     const markets: KalshiMarket[] = [];
     let cursor: string | undefined;
     let page = 0;
+    const apiPath = '/trade-api/v2/markets';
 
     while (page < maxPages) {
       const params = new URLSearchParams({
@@ -72,7 +109,7 @@ export class KalshiClient {
 
       const res = await fetch(`${BASE_URL}/markets?${params}`, {
         headers: {
-          ...this.authHeaders(),
+          ...this.authHeaders('GET', apiPath),
           'Content-Type': 'application/json',
         },
       });
@@ -94,10 +131,8 @@ export class KalshiClient {
       cursor = data.cursor;
       page++;
 
-      // Stop if no more pages
       if (!cursor || batch.length === 0) break;
 
-      // Polite rate-limit delay
       await sleep(200);
     }
 

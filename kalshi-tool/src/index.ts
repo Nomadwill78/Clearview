@@ -6,10 +6,11 @@ import { buildReport, printReport, saveReport } from './report';
 
 async function main() {
   // ── Config ──────────────────────────────────────────────────────────────
-  const email       = process.env.KALSHI_EMAIL;
-  const password    = process.env.KALSHI_PASSWORD;
-  const apiKeyId    = process.env.KALSHI_API_KEY_ID;
-  const topN        = parseInt(process.env.TOP_N_MARKETS ?? '10', 10);
+  const email            = process.env.KALSHI_EMAIL;
+  const password         = process.env.KALSHI_PASSWORD;
+  const apiKeyId         = process.env.KALSHI_API_KEY_ID;
+  const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
+  const topN             = parseInt(process.env.TOP_N_MARKETS ?? '10', 10);
   const minVolume   = parseInt(process.env.MIN_VOLUME ?? '1000', 10);
   const minSkew     = parseFloat(process.env.MIN_PROBABILITY_SKEW ?? '0.65');
   const outputDir   = process.env.OUTPUT_DIR ?? './reports';
@@ -24,7 +25,7 @@ async function main() {
 
   // ── Kalshi ───────────────────────────────────────────────────────────────
   console.log('🔍 Fetching open Kalshi markets…');
-  const kalshi = new KalshiClient(email, password, apiKeyId);
+  const kalshi = new KalshiClient(email, password, apiKeyId, privateKeySource);
   await kalshi.authenticate();
 
   const allMarkets = await kalshi.fetchOpenMarkets({ minVolume, maxPages: 20 });
