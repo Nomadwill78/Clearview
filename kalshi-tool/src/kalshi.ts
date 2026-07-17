@@ -119,7 +119,23 @@ export class KalshiClient {
         throw new Error(`Kalshi markets fetch failed (${res.status}): ${body}`);
       }
 
-      const data = (await res.json()) as KalshiMarketsResponse;
+      const raw = await res.json();
+
+      // Debug: print the raw response shape on the first page
+      if (page === 0) {
+        const keys = Object.keys(raw as object);
+        console.log(`   API response keys: [${keys.join(', ')}]`);
+        const firstKey = keys[0];
+        const firstVal = (raw as Record<string, unknown>)[firstKey];
+        if (Array.isArray(firstVal)) {
+          console.log(`   "${firstKey}" array length: ${firstVal.length}`);
+          if (firstVal.length > 0) {
+            console.log(`   First item keys: [${Object.keys(firstVal[0] as object).join(', ')}]`);
+          }
+        }
+      }
+
+      const data = raw as KalshiMarketsResponse;
       const batch = data.markets ?? [];
 
       for (const m of batch) {
