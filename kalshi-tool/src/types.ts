@@ -4,20 +4,30 @@ export interface KalshiMarket {
   title: string;
   yes_sub_title?: string;
   no_sub_title?: string;
-  category: string;
-  yes_bid: number;
-  yes_ask: number;
-  no_bid: number;
-  no_ask: number;
-  volume: number;
-  volume_24h: number;
-  open_interest: number;
-  close_time: string;
-  expected_expiration_time?: string;
+  category?: string;
   status: string;
-  liquidity: number;
-  last_price: number;
-  notional_value?: number;
+  // Prices in dollars (0.0–1.0 range = probability)
+  yes_bid_dollars: number;
+  yes_ask_dollars: number;
+  no_bid_dollars: number;
+  no_ask_dollars: number;
+  last_price_dollars: number;
+  previous_yes_bid_dollars?: number;
+  previous_yes_ask_dollars?: number;
+  // Volume / liquidity (fixed-point integers — divide by 100 for contracts)
+  volume_fp: number;
+  volume_24h_fp: number;
+  open_interest_fp: number;
+  liquidity_dollars: number;
+  // Timing
+  close_time: string;
+  open_time: string;
+  expected_expiration_time?: string;
+  expiration_time?: string;
+  // Other
+  market_type?: string;
+  result?: string;
+  notional_value_dollars?: number;
 }
 
 export interface SafetyDetails {

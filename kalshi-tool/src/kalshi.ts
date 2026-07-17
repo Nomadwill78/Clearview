@@ -18,7 +18,6 @@ export class KalshiClient {
     this.apiKeyId = apiKeyId ?? null;
 
     if (privateKeyPathOrPem) {
-      // Accept either a file path or a raw PEM string
       if (privateKeyPathOrPem.startsWith('-----BEGIN')) {
         this.privateKeyPem = privateKeyPathOrPem;
       } else {
@@ -79,8 +78,6 @@ export class KalshiClient {
     throw new Error('Not authenticated. Call authenticate() first.');
   }
 
-  // Kalshi signature: RSA-SHA256 of "<timestamp><METHOD><path>"
-  // Path must be the raw path without query string, e.g. "/trade-api/v2/markets"
   private signRequest(timestamp: string, method: string, path: string): string {
     const message = timestamp + method.toUpperCase() + path;
     const sign = crypto.createSign('SHA256');
@@ -102,7 +99,6 @@ export class KalshiClient {
 
     while (page < maxPages) {
       const params = new URLSearchParams({
-        status: 'open',
         limit: String(limit),
         ...(cursor ? { cursor } : {}),
       });
@@ -119,32 +115,13 @@ export class KalshiClient {
         throw new Error(`Kalshi markets fetch failed (${res.status}): ${body}`);
       }
 
-      const raw = await res.json();
+      const data = (await res.json()) as KalshiMarketsResponse;
+      const batch = (data.markets ?? []).filter(m => m.status === 'active');
 
-      // Debug: print raw response detail on the first page
-      if (page === 0) {
-        const r = raw as Record<string, unknown>;
-        const mArr = Array.isArray(r['markets']) ? (r['markets'] as unknown[]) : [];
-        console.log(`   Markets in first page: ${mArr.length}`);
-        if (mArr.length > 0) {
-          const first = mArr[0] as Record<string, unknown>;
-          console.log(`   First market keys: [${Object.keys(first).join(', ')}]`);
-          console.log(`   First market sample: ${JSON.stringify({
-            ticker: first['ticker'],
-            title: first['title'],
-            status: first['status'],
-            volume: first['volume'],
-            yes_bid: first['yes_bid'],
-            yes_ask: first['yes_ask'],
-          })}`);
-        }
-      }
-
-      const data = raw as KalshiMarketsResponse;
-      const batch = data.markets ?? [];
-
+      // volume_fp is a fixed-point integer; divide by 100 to get contracts
       for (const m of batch) {
-        if (m.volume >= minVolume) {
+        const volume = (m.volume_fp ?? 0) / 100;
+        if (volume >= minVolume) {
           markets.push(m);
         }
       }

@@ -54,7 +54,7 @@ export function printReport(report: WeeklyReport): void {
     );
     console.log(
       `     Safety score: ${(m.safetyScore * 100).toFixed(1)}/100` +
-      `  |  Volume: ${m.volume.toLocaleString()}` +
+      `  |  Volume: ${Math.round((m.volume_fp ?? 0) / 100).toLocaleString()} contracts` +
       `  |  Spread: ${m.safetyDetails.spread}¢`,
     );
 
