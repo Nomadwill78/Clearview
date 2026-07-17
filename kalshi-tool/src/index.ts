@@ -11,7 +11,7 @@ async function main() {
   const apiKeyId         = process.env.KALSHI_API_KEY_ID;
   const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
   const topN             = parseInt(process.env.TOP_N_MARKETS ?? '10', 10);
-  const minVolume   = parseInt(process.env.MIN_VOLUME ?? '1000', 10);
+  const minVolume   = parseInt(process.env.MIN_VOLUME ?? '0', 10);
   const minSkew     = parseFloat(process.env.MIN_PROBABILITY_SKEW ?? '0.65');
   const outputDir   = process.env.OUTPUT_DIR ?? './reports';
 

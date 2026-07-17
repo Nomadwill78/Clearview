@@ -121,17 +121,22 @@ export class KalshiClient {
 
       const raw = await res.json();
 
-      // Debug: print the raw response shape on the first page
+      // Debug: print raw response detail on the first page
       if (page === 0) {
-        const keys = Object.keys(raw as object);
-        console.log(`   API response keys: [${keys.join(', ')}]`);
-        const firstKey = keys[0];
-        const firstVal = (raw as Record<string, unknown>)[firstKey];
-        if (Array.isArray(firstVal)) {
-          console.log(`   "${firstKey}" array length: ${firstVal.length}`);
-          if (firstVal.length > 0) {
-            console.log(`   First item keys: [${Object.keys(firstVal[0] as object).join(', ')}]`);
-          }
+        const r = raw as Record<string, unknown>;
+        const mArr = Array.isArray(r['markets']) ? (r['markets'] as unknown[]) : [];
+        console.log(`   Markets in first page: ${mArr.length}`);
+        if (mArr.length > 0) {
+          const first = mArr[0] as Record<string, unknown>;
+          console.log(`   First market keys: [${Object.keys(first).join(', ')}]`);
+          console.log(`   First market sample: ${JSON.stringify({
+            ticker: first['ticker'],
+            title: first['title'],
+            status: first['status'],
+            volume: first['volume'],
+            yes_bid: first['yes_bid'],
+            yes_ask: first['yes_ask'],
+          })}`);
         }
       }
 
