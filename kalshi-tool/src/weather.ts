@@ -150,17 +150,14 @@ export async function findWeatherEdges(
       const bound = parseBound(m.yes_sub_title);
       if (!bound) continue;
 
-      const marketProb = impliedProb(m);
-      if (marketProb === null) continue;
+      const quote = getQuote(m);
+      if (!quote) continue;               // no tradeable price → skip
 
       marketsScored++;
       const modelProb = modelYesProb(bound, forecast.highF, cfg.sigma);
 
-      const edge = pickSide(marketProb, modelProb);
-      if (edge.net < cfg.minEdge) continue;
-
-      const entryPrice = Math.round((edge.side === 'YES' ? marketProb : 1 - marketProb) * 100);
-      const stakeUsd = kellyStake(edge.side === 'YES' ? marketProb : 1 - marketProb, edge.winProb, cfg);
+      const decision = evaluate(quote, modelProb, cfg);
+      if (!decision || decision.net < cfg.minEdge) continue;
 
       edges.push({
         city: station.city,
@@ -170,12 +167,12 @@ export async function findWeatherEdges(
         boundLabel: m.yes_sub_title,
         forecastHigh: forecast.highF,
         shortForecast: forecast.shortForecast,
-        marketProb,
+        marketProb: decision.marketProb,
         modelProb,
-        side: edge.side,
-        edge: edge.net,
-        entryPrice,
-        stakeUsd,
+        side: decision.side,
+        edge: decision.net,
+        entryPrice: decision.entryPrice,
+        stakeUsd: decision.stakeUsd,
       });
     }
   }
@@ -186,28 +183,72 @@ export async function findWeatherEdges(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function impliedProb(m: any): number | null {
-  const bid = m.yes_bid_dollars;
-  const ask = m.yes_ask_dollars;
-  if (bid > 0 && ask > 0 && ask >= bid) return (bid + ask) / 2;
-  const last = m.last_price_dollars;
-  if (last > 0 && last < 1) return last;
-  return null;
+// Kalshi returns price fields as STRINGS — coerce explicitly to avoid "0.4"+"0.5"
+// string concatenation. A valid probability price is strictly between 0 and 1.
+function num(x: any): number {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : NaN;
+}
+function isPrice(x: number): boolean {
+  return Number.isFinite(x) && x > 0 && x < 1;
 }
 
-// Kalshi's per-contract fee ≈ 0.07 * price * (1-price). Decide which side (YES
-// or NO) carries the bigger post-fee edge.
-function pickSide(marketProb: number, modelProb: number): { side: 'YES' | 'NO'; net: number; winProb: number } {
-  const feeYes = 0.07 * marketProb * (1 - marketProb);
-  const feeNo = 0.07 * (1 - marketProb) * marketProb;
-  const yesEdge = (modelProb - marketProb) - feeYes;
-  const noEdge = ((1 - modelProb) - (1 - marketProb)) - feeNo;
-  if (yesEdge >= noEdge) return { side: 'YES', net: yesEdge, winProb: modelProb };
-  return { side: 'NO', net: noEdge, winProb: 1 - modelProb };
+interface Quote {
+  yesAsk: number;
+  noAsk: number;
+  marketProbYes: number;   // implied YES probability for display
 }
 
-// Fractional Kelly with hard cap. price = entry cost of the chosen side (0–1),
-// winProb = model probability that side wins.
+// Build a tradeable quote. Requires a real ASK on at least one side (you can't
+// buy without an offer). Falls back to last trade only for display.
+function getQuote(m: any): Quote | null {
+  const yesBid = num(m.yes_bid_dollars);
+  const yesAsk = num(m.yes_ask_dollars);
+  const noAsk = num(m.no_ask_dollars);
+  const last = num(m.last_price_dollars);
+
+  if (!isPrice(yesAsk) && !isPrice(noAsk)) return null;   // nothing to buy
+
+  let marketProbYes: number;
+  if (isPrice(yesBid) && isPrice(yesAsk)) marketProbYes = (yesBid + yesAsk) / 2;
+  else if (isPrice(yesAsk)) marketProbYes = yesAsk;
+  else if (isPrice(noAsk)) marketProbYes = 1 - noAsk;
+  else if (isPrice(last)) marketProbYes = last;
+  else return null;
+
+  return { yesAsk, noAsk, marketProbYes };
+}
+
+// Choose the side with the best post-fee edge, priced at the ASK you'd actually
+// pay. Kalshi per-contract fee ≈ 0.07 * price * (1-price).
+function evaluate(
+  q: Quote,
+  modelProb: number,
+  cfg: WeatherConfig,
+): { side: 'YES' | 'NO'; net: number; entryPrice: number; stakeUsd: number; marketProb: number } | null {
+  const options: { side: 'YES' | 'NO'; ask: number; win: number }[] = [];
+  if (isPrice(q.yesAsk)) options.push({ side: 'YES', ask: q.yesAsk, win: modelProb });
+  if (isPrice(q.noAsk)) options.push({ side: 'NO', ask: q.noAsk, win: 1 - modelProb });
+
+  let best: { side: 'YES' | 'NO'; net: number; ask: number; win: number } | null = null;
+  for (const o of options) {
+    const fee = 0.07 * o.ask * (1 - o.ask);
+    const net = o.win - o.ask - fee;         // expected edge per $1 contract
+    if (!best || net > best.net) best = { side: o.side, net, ask: o.ask, win: o.win };
+  }
+  if (!best) return null;
+
+  return {
+    side: best.side,
+    net: best.net,
+    entryPrice: Math.round(best.ask * 100),
+    stakeUsd: kellyStake(best.ask, best.win, cfg),
+    marketProb: q.marketProbYes,
+  };
+}
+
+// Fractional Kelly with hard cap. price = ask you pay (0–1), winProb = model
+// probability that side wins.
 function kellyStake(price: number, winProb: number, cfg: WeatherConfig): number {
   if (price <= 0 || price >= 1) return 0;
   const b = (1 - price) / price;
