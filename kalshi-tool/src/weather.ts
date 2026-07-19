@@ -267,11 +267,16 @@ function evaluate(
   }
   if (!best) return null;
 
+  // Kelly stake, but you can never deploy more than the offered size × price.
+  const kelly = kellyStake(best.ask, best.win, cfg);
+  const fillableUsd = best.size * best.ask;
+  const stakeUsd = Math.round(Math.min(kelly, fillableUsd) * 100) / 100;
+
   return {
     side: best.side,
     net: best.net,
     entryPrice: Math.round(best.ask * 100),
-    stakeUsd: kellyStake(best.ask, best.win, cfg),
+    stakeUsd,
     marketProb: q.marketProbYes,
     availableContracts: best.size,
   };
