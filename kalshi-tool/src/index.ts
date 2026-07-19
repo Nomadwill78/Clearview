@@ -1,94 +1,176 @@
 import 'dotenv/config';
 import { KalshiClient } from './kalshi';
-import { rankMarkets, DEFAULT_GATES, SafetyGates } from './scoring';
-import { explainSafeBet, generateWeeklySummary } from './claude';
-import { buildReport, printReport, saveReport } from './report';
+import { fetchPolymarketMarkets } from './polymarket';
+import { topMatches } from './match';
+import { confirmMatch } from './claude';
+import {
+  buildDivergenceReport,
+  saveJson,
+  saveHtml,
+  printConsole,
+} from './divergenceReport';
+import { DivergenceRow, KalshiMarket, PolymarketMarket } from './types';
 
 async function main() {
-  // ── Config ──────────────────────────────────────────────────────────────
+  // ── Config ────────────────────────────────────────────────────────────────
   const email            = process.env.KALSHI_EMAIL;
   const password         = process.env.KALSHI_PASSWORD;
   const apiKeyId         = process.env.KALSHI_API_KEY_ID;
   const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
-  const topN             = parseInt(process.env.TOP_N_MARKETS ?? '10', 10);
+
+  const kalshiMinVol24h  = parseFloat(process.env.KALSHI_MIN_VOLUME_24H ?? '200');   // contracts
+  const polyMinVol24h    = parseFloat(process.env.POLY_MIN_VOLUME_24H   ?? '500');   // USD
+  const minGapPoints     = parseFloat(process.env.MIN_GAP_POINTS        ?? '5');
+  const maxDaysToClose   = parseFloat(process.env.MAX_DAYS_TO_CLOSE     ?? '180');
+  const maxMatchChecks   = parseInt(process.env.MAX_MATCH_CHECKS        ?? '60', 10);
+  const topN             = parseInt(process.env.TOP_N_MARKETS           ?? '15', 10);
   const outputDir        = process.env.OUTPUT_DIR ?? './reports';
 
-  // ── Safety gates (all configurable via .env) ────────────────────────────
-  const gates: SafetyGates = {
-    minConsensus:     parseFloat(process.env.MIN_CONSENSUS      ?? String(DEFAULT_GATES.minConsensus)),
-    maxHoursToExpiry: parseInt(process.env.MAX_HOURS_TO_EXPIRY  ?? String(DEFAULT_GATES.maxHoursToExpiry), 10),
-    maxSpreadCents:   parseInt(process.env.MAX_SPREAD_CENTS     ?? String(DEFAULT_GATES.maxSpreadCents), 10),
-    minVolume24h:     parseInt(process.env.MIN_VOLUME_24H       ?? String(DEFAULT_GATES.minVolume24h), 10),
-  };
-
-  const missingAnthropic = !process.env.ANTHROPIC_API_KEY;
-  if (missingAnthropic) {
-    console.warn('⚠  ANTHROPIC_API_KEY not set — AI explanations will be skipped.');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('✗ ANTHROPIC_API_KEY is required — it powers the market matching. Add it to your .env.');
+    process.exit(1);
   }
 
-  // ── Fetch markets ────────────────────────────────────────────────────────
-  console.log('🔍 Fetching open Kalshi markets…');
+  // ── 1. Kalshi markets ──────────────────────────────────────────────────────
+  console.log('🔍 Fetching Kalshi markets…');
   const kalshi = new KalshiClient(email, password, apiKeyId, privateKeySource);
   await kalshi.authenticate();
+  const kalshiRaw = await kalshi.fetchOpenMarkets({ maxPages: 20 });
+  const kalshiPool = buildKalshiPool(kalshiRaw, kalshiMinVol24h, maxDaysToClose);
+  console.log(`   ${kalshiRaw.length} active → ${kalshiPool.length} liquid, comparable markets`);
 
-  const allMarkets = await kalshi.fetchOpenMarkets({ maxPages: 20 });
-  console.log(`   Fetched ${allMarkets.length} active markets`);
+  // ── 2. Polymarket markets ──────────────────────────────────────────────────
+  console.log('🔍 Fetching Polymarket markets…');
+  const polyPool = await fetchPolymarketMarkets({ minVolume24h: polyMinVol24h });
+  console.log(`   ${polyPool.length} liquid Polymarket markets`);
 
-  // ── Apply hard gates ─────────────────────────────────────────────────────
-  console.log('🔒 Applying safety gates…');
-  console.log(`   Gate 1 — Consensus     ≥ ${(gates.minConsensus * 100).toFixed(0)}%`);
-  console.log(`   Gate 2 — Expiry        ≤ ${gates.maxHoursToExpiry}h`);
-  console.log(`   Gate 3 — Spread        ≤ ${gates.maxSpreadCents}¢  AND  24h volume ≥ ${gates.minVolume24h.toLocaleString()}`);
+  // ── 3. Prefilter by text similarity (cheap), then AI-confirm overlaps ───────
+  console.log('🔗 Finding markets that describe the same event…');
+  const withCandidates = kalshiPool
+    .map((k) => ({ k, candidates: topMatches(k.title, polyPool, 5, 0.15) }))
+    .filter((x) => x.candidates.length > 0)
+    // Prioritise the strongest textual overlaps so the AI-check budget is well spent
+    .sort((a, b) => (b.candidates[0]?.score ?? 0) - (a.candidates[0]?.score ?? 0))
+    .slice(0, maxMatchChecks);
 
-  const { ranked, stats } = rankMarkets(allMarkets, gates);
+  console.log(`   ${withCandidates.length} Kalshi markets have a plausible Polymarket twin (AI-checking each)…`);
 
-  console.log(`\n   Results:`);
-  console.log(`   ✓ Passed all gates : ${stats.passedGates}`);
-  console.log(`   ✗ Failed consensus : ${stats.failedConsensus}`);
-  console.log(`   ✗ Failed time gate : ${stats.failedTime}`);
-  console.log(`   ✗ Failed liquidity : ${stats.failedLiquidity}`);
+  const rows: DivergenceRow[] = [];
+  for (let i = 0; i < withCandidates.length; i++) {
+    const { k, candidates } = withCandidates[i];
+    process.stdout.write(`   [${i + 1}/${withCandidates.length}] ${k.ticker}… `);
 
-  if (ranked.length === 0) {
-    console.log('\n⚠  No markets passed all three gates right now.');
-    console.log('   Try loosening the thresholds in your .env:');
-    console.log('     MIN_CONSENSUS=0.80  MAX_HOURS_TO_EXPIRY=168  MAX_SPREAD_CENTS=5  MIN_VOLUME_24H=1000');
-    process.exit(0);
-  }
-
-  const topMarkets = ranked.slice(0, topN);
-
-  // ── AI Explanations ───────────────────────────────────────────────────────
-  if (!missingAnthropic) {
-    console.log(`\n🤖 Generating Claude explanations for top ${topMarkets.length} bets…`);
-    for (let i = 0; i < topMarkets.length; i++) {
-      const m = topMarkets[i];
-      process.stdout.write(`   [${i + 1}/${topMarkets.length}] ${m.ticker}… `);
-      try {
-        m.explanation = await explainSafeBet(m);
-        console.log('✓');
-      } catch {
-        console.log('✗ (skipped)');
-        m.explanation = 'AI explanation unavailable.';
-      }
-      if (i < topMarkets.length - 1) await sleep(300);
+    let verdict;
+    try {
+      verdict = await confirmMatch(k.title, candidates.map((c) => c.market.question));
+    } catch {
+      console.log('✗ (AI error)');
+      continue;
     }
 
-    console.log('📝 Generating weekly summary…');
-    const summary = await generateWeeklySummary(topMarkets, stats);
-    const report = buildReport(topMarkets, stats.total, summary);
-    const savedPath = saveReport(report, outputDir);
-    printReport(report);
-    console.log(`💾 Report saved to: ${savedPath}`);
-  } else {
-    const report = buildReport(
-      topMarkets,
-      stats.total,
-      `Top ${topMarkets.length} markets passed all safety gates (set ANTHROPIC_API_KEY for AI explanations).`,
-    );
-    const savedPath = saveReport(report, outputDir);
-    printReport(report);
-    console.log(`💾 Report saved to: ${savedPath}`);
+    if (verdict.index < 0 || verdict.index >= candidates.length) {
+      console.log('no match');
+      continue;
+    }
+
+    const poly = candidates[verdict.index].market;
+    const polyYesAligned = verdict.inverted ? 1 - poly.yesPrice : poly.yesPrice;
+    const gapPoints = Math.abs(k.yesProb - polyYesAligned) * 100;
+
+    if (gapPoints < minGapPoints) {
+      console.log(`agree (${gapPoints.toFixed(1)}pt)`);
+      continue;
+    }
+
+    console.log(`✓ ${gapPoints.toFixed(1)}pt gap`);
+    rows.push(makeRow(k, poly, polyYesAligned, gapPoints, verdict.confidence));
+
+    if (i < withCandidates.length - 1) await sleep(250);
   }
+
+  // ── 4. Rank & report ────────────────────────────────────────────────────────
+  rows.sort((a, b) => b.rankScore - a.rankScore);
+  const top = rows.slice(0, topN);
+
+  const report = buildDivergenceReport(top, {
+    kalshiPoolSize: kalshiPool.length,
+    polyPoolSize: polyPool.length,
+    matchChecks: withCandidates.length,
+  });
+
+  printConsole(report);
+  const jsonPath = saveJson(report, outputDir);
+  const htmlPath = saveHtml(report, outputDir);
+  console.log(`💾 JSON saved to: ${jsonPath}`);
+  console.log(`🌐 Open this in your browser:\n   ${htmlPath}\n`);
+}
+
+// ---------------------------------------------------------------------------
+
+interface KalshiView {
+  ticker: string;
+  title: string;
+  yesProb: number;
+  vol24h: number;
+  daysToClose: number;
+}
+
+function buildKalshiPool(
+  markets: KalshiMarket[],
+  minVol24h: number,
+  maxDays: number,
+): KalshiView[] {
+  const now = Date.now();
+  const pool: KalshiView[] = [];
+
+  for (const m of markets) {
+    const bid = m.yes_bid_dollars ?? 0;
+    const ask = m.yes_ask_dollars ?? 0;
+    if (bid <= 0 || ask <= 0 || ask < bid) continue;
+
+    const yesProb = (bid + ask) / 2;
+    if (yesProb < 0.05 || yesProb > 0.95) continue; // skip near-resolved
+
+    const vol24h = (m.volume_24h_fp ?? 0) / 100;
+    if (vol24h < minVol24h) continue;
+
+    const daysToClose = (new Date(m.close_time).getTime() - now) / (1000 * 60 * 60 * 24);
+    if (daysToClose <= 0 || daysToClose > maxDays) continue;
+
+    pool.push({ ticker: m.ticker, title: m.title, yesProb, vol24h, daysToClose });
+  }
+
+  return pool;
+}
+
+function makeRow(
+  k: KalshiView,
+  poly: PolymarketMarket,
+  polyYesAligned: number,
+  gapPoints: number,
+  confidence: 'high' | 'medium' | 'low',
+): DivergenceRow {
+  const confWeight = confidence === 'high' ? 1.0 : confidence === 'medium' ? 0.6 : 0.3;
+  // Reward big gaps on liquid, well-matched, soon-resolving markets
+  const liqWeight = Math.min(Math.log1p(Math.min(k.vol24h, poly.volume24h)) / Math.log1p(10_000), 1);
+  const timeWeight = Math.max(0.3, 1 - k.daysToClose / 180);
+  const rankScore = gapPoints * confWeight * (0.5 + 0.5 * liqWeight) * timeWeight;
+
+  return {
+    kalshiTicker: k.ticker,
+    kalshiTitle: k.title,
+    kalshiYes: k.yesProb,
+    kalshiVol24h: k.vol24h,
+    polyQuestion: poly.question,
+    polyYes: polyYesAligned,
+    polyVol24h: poly.volume24h,
+    polyUrl: poly.url,
+    gapPoints,
+    richerSide: k.yesProb >= polyYesAligned ? 'KALSHI' : 'POLYMARKET',
+    confidence,
+    daysToClose: k.daysToClose,
+    rankScore,
+  };
 }
 
 function sleep(ms: number): Promise<void> {

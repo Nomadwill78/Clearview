@@ -3,6 +3,65 @@ import { ScoredMarket } from './types';
 
 const client = new Anthropic();
 
+export interface MatchVerdict {
+  index: number;                          // chosen candidate index, or -1 for none
+  confidence: 'high' | 'medium' | 'low';
+  inverted: boolean;                      // true if Polymarket YES = Kalshi NO
+}
+
+// Ask Claude to confirm which Polymarket candidate (if any) is the SAME event
+// as a Kalshi market, and whether the YES sides point the same direction.
+export async function confirmMatch(
+  kalshiTitle: string,
+  candidateQuestions: string[],
+): Promise<MatchVerdict> {
+  if (candidateQuestions.length === 0) {
+    return { index: -1, confidence: 'low', inverted: false };
+  }
+
+  const list = candidateQuestions.map((c, i) => `${i}. ${c}`).join('\n');
+  const prompt = `A Kalshi market and several Polymarket markets are below. Pick which Polymarket market, if any, is about the EXACT same real-world event with the same resolution criteria and timeframe as the Kalshi market.
+
+Kalshi market:
+"${kalshiTitle}"
+
+Polymarket candidates:
+${list}
+
+Rules:
+- Only match if a bettor would consider them the same wager. Similar topic is NOT enough.
+- "inverted" is true when the Polymarket "Yes" corresponds to the Kalshi "No" (opposite phrasing).
+- If nothing truly matches, return index -1.
+
+Respond with ONLY strict JSON, no other text:
+{"index": <number or -1>, "confidence": "high"|"medium"|"low", "inverted": <true|false>}`;
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 80,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const content = message.content[0];
+  if (content.type !== 'text') return { index: -1, confidence: 'low', inverted: false };
+
+  try {
+    const json = JSON.parse(extractJson(content.text));
+    const index = Number.isInteger(json.index) ? json.index : -1;
+    const confidence = ['high', 'medium', 'low'].includes(json.confidence) ? json.confidence : 'low';
+    return { index, confidence, inverted: Boolean(json.inverted) };
+  } catch {
+    return { index: -1, confidence: 'low', inverted: false };
+  }
+}
+
+function extractJson(text: string): string {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return '{}';
+  return text.slice(start, end + 1);
+}
+
 export async function explainSafeBet(market: ScoredMarket): Promise<string> {
   const { safetyDetails: d, recommendedPosition, recommendedEntry, title } = market;
 

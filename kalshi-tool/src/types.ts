@@ -67,3 +67,42 @@ export interface KalshiMarketsResponse {
   markets: KalshiMarket[];
   cursor?: string;
 }
+
+// ── Cross-market (Polymarket) comparison ────────────────────────────────────
+
+export interface PolymarketMarket {
+  question: string;
+  yesPrice: number;     // 0–1 probability
+  volume24h: number;
+  liquidity: number;
+  endDate: string;
+  spreadCents: number;
+  slug: string;
+  url: string;
+}
+
+export interface DivergenceRow {
+  kalshiTicker: string;
+  kalshiTitle: string;
+  kalshiYes: number;          // 0–1
+  kalshiVol24h: number;       // contracts
+  polyQuestion: string;
+  polyYes: number;            // 0–1, aligned to the Kalshi YES direction
+  polyVol24h: number;
+  polyUrl: string;
+  gapPoints: number;          // absolute difference in percentage points
+  richerSide: 'KALSHI' | 'POLYMARKET';  // which venue prices YES higher
+  confidence: 'high' | 'medium' | 'low';
+  daysToClose: number;
+  rankScore: number;
+}
+
+export interface DivergenceReport {
+  generatedAt: string;
+  weekOf: string;
+  kalshiPoolSize: number;
+  polyPoolSize: number;
+  matchChecks: number;
+  matchesFound: number;
+  rows: DivergenceRow[];
+}

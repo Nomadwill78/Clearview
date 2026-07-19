@@ -1,131 +1,74 @@
-# Kalshi Safe Bets
+# Kalshi ↔ Polymarket Divergence Finder
 
-A weekly CLI tool that scans all open Kalshi prediction markets, scores them for "safety", and uses Claude AI to explain why each pick makes sense.
+Finds prediction markets where **Kalshi and Polymarket disagree on the same event**. When the two biggest prediction markets price an identical outcome differently, one side is likely mispriced — and that gap is the closest thing to a real edge a regular bettor can find.
 
-## What "safe" means
+Each run produces a ranked, browser-readable report of these divergences.
 
-A market is considered safe when multiple signals align:
+## How it works
 
-| Signal | Weight | What it measures |
-|---|---|---|
-| **Probability skew** | 40% | How far the current price is from 50/50. A 90¢ YES = market is 90% confident. |
-| **Liquidity** | 30% | Volume + open interest. High-traffic markets have more reliable prices. |
-| **Bid-ask spread** | 20% | Tighter spread = more efficient pricing. Wide spreads signal uncertainty. |
-| **Time to resolution** | 10% | Prefer markets resolving in 1–30 days — enough time for the outcome to be clear, not so long that things can flip. |
-
-Markets are only surfaced if the dominant outcome has ≥ 65% implied probability (configurable).
+1. Fetches all liquid **Kalshi** markets (your authenticated API key)
+2. Fetches all liquid **Polymarket** markets (free public API — no key needed)
+3. Text-matches markets that look like the same event (cheap prefilter)
+4. Uses **Claude** to confirm each match is truly the same wager, and flags whether the YES sides are aligned or inverted
+5. Compares the two prices and reports the biggest gaps, ranked by size × match-confidence × liquidity
 
 ## Setup
-
-### 1. Install dependencies
 
 ```bash
 cd kalshi-tool
 npm install
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-# Edit .env with your credentials
+cp .env.example .env      # then edit .env with your keys
 ```
 
 You need:
-- **Kalshi credentials** — either email/password or an API key (create one in Kalshi dashboard → Settings → API Keys)
-- **Anthropic API key** — for Claude-powered explanations ([get one here](https://console.anthropic.com))
+- **Kalshi API key** — key ID + the private-key `.txt` file (Settings → API Keys in Kalshi)
+- **Anthropic API key** — required; it powers the market matching ([console.anthropic.com](https://console.anthropic.com))
 
-### 3. Run
+## Run
 
 ```bash
 npm start
 ```
 
-Output is printed to the console **and** saved as a JSON file in `./reports/`.
+Outputs to `./reports/`:
+- **`divergences-<week>.html`** ← open this in your browser (the main deliverable)
+- `divergences-<week>.json` ← raw data
 
-## Configuration
+## Reading the report
 
-All settings live in `.env`:
+Each card shows one event both venues cover, with:
+- **Gap** — how many percentage points apart the two prices are (bigger = more potential edge)
+- **Match confidence** — high / medium / low, how sure the AI is that both rows are the same wager. **Always click through and read both markets' rules on a low-confidence match.**
+- Both venues' YES prices, and which one prices it lower
+- A direct link to the Polymarket market
 
-| Variable | Default | Description |
+## Configuration (`.env`)
+
+| Variable | Default | Meaning |
 |---|---|---|
-| `KALSHI_EMAIL` | — | Your Kalshi account email |
-| `KALSHI_PASSWORD` | — | Your Kalshi password |
-| `KALSHI_API_KEY_ID` | — | API key ID (alternative to email/password) |
-| `ANTHROPIC_API_KEY` | — | Claude API key for explanations |
-| `TOP_N_MARKETS` | `10` | How many safe bets to surface |
-| `MIN_VOLUME` | `1000` | Minimum volume to consider a market |
-| `MIN_PROBABILITY_SKEW` | `0.65` | Minimum dominant probability (e.g., 0.65 = 65¢ YES/NO) |
-| `OUTPUT_DIR` | `./reports` | Where to save JSON reports |
+| `KALSHI_MIN_VOLUME_24H` | `200` | Min Kalshi 24h volume (contracts) |
+| `POLY_MIN_VOLUME_24H` | `500` | Min Polymarket 24h volume (USD) |
+| `MIN_GAP_POINTS` | `5` | Only report gaps at least this wide |
+| `MAX_DAYS_TO_CLOSE` | `180` | Ignore markets resolving further out |
+| `MAX_MATCH_CHECKS` | `60` | Max AI checks per run (controls cost) |
+| `TOP_N_MARKETS` | `15` | How many divergences to show |
 
-## Automate weekly runs
+## Important
 
-**macOS/Linux cron** — every Monday at 8 AM:
-```
-0 8 * * 1 cd /path/to/kalshi-tool && npm start >> ~/kalshi-reports.log 2>&1
-```
-
-**GitHub Actions** — add `.github/workflows/kalshi-weekly.yml` (see below):
-```yaml
-on:
-  schedule:
-    - cron: '0 8 * * 1'  # Every Monday at 8 AM UTC
-  workflow_dispatch:       # Manual trigger too
-
-jobs:
-  safe-bets:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm install
-        working-directory: kalshi-tool
-      - run: npm start
-        working-directory: kalshi-tool
-        env:
-          KALSHI_EMAIL: ${{ secrets.KALSHI_EMAIL }}
-          KALSHI_PASSWORD: ${{ secrets.KALSHI_PASSWORD }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-```
-
-## Example output
-
-```
-╔══════════════════════════════════════════════════════════════════════╗
-║            KALSHI SAFE BETS — WEEK OF 2026-06-15                    ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-This week's safest markets skew heavily toward near-certain economic
-outcomes. Fed rate decisions and monthly jobs numbers dominate the top
-picks, with >85% implied probabilities and deep liquidity.
-
-────────────────────────────────────────────────────────────────────────
-
-#1  Will the Fed hold rates at the June meeting?
-     Ticker: FED-26JUN-R5.25  |  Category: Economics
-     Position: YES @ 91¢  |  Implied prob: 91.5%  |  Resolves: 12 days
-     Safety score: 88.3/100  |  Volume: 48,321  |  Spread: 2¢
-
-     Fed futures pricing and recent FOMC minutes strongly suggest no
-     move at the June meeting. Deep market liquidity (48k contracts,
-     2¢ spread) makes this pricing highly reliable. Main risk: a
-     surprise inflation print this week.
-```
+This tool **surfaces price differences — it does not guarantee winning bets.** Two markets can legitimately differ because their rules or resolution dates differ slightly, so the AI match is a helpful filter, not proof. Always read both markets yourself before acting. Prediction market trading carries real risk of loss.
 
 ## Project structure
 
 ```
 kalshi-tool/
 ├── src/
-│   ├── index.ts    — CLI entry point, orchestrates the full flow
-│   ├── kalshi.ts   — Kalshi REST API client (auth + market fetching)
-│   ├── scoring.ts  — Safety scoring algorithm (4-factor weighted score)
-│   ├── claude.ts   — Claude AI integration (per-market explanations + summary)
-│   ├── report.ts   — Report building, file saving, console output
-│   └── types.ts    — TypeScript type definitions
-├── .env.example    — Config template
-├── package.json
-└── tsconfig.json
+│   ├── index.ts             — main flow: fetch → match → compare → report
+│   ├── kalshi.ts            — Kalshi API client (RSA-signed auth)
+│   ├── polymarket.ts        — Polymarket public API client
+│   ├── match.ts             — text-similarity prefilter
+│   ├── claude.ts            — AI match confirmation
+│   ├── divergenceReport.ts  — console + HTML + JSON output
+│   └── types.ts             — shared types
+├── kalshi_advisor.py        — standalone Python advisor (Kelly sizing, separate tool)
+└── .env.example
 ```
