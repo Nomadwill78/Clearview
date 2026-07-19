@@ -85,6 +85,8 @@ export interface WeatherEdge {
   edge: number;          // net edge after fee, for the chosen side
   entryPrice: number;    // cents to buy the chosen side
   stakeUsd: number;
+  availableContracts: number;   // how many contracts are offered at the ask
+  trust: 'value' | 'suspect';   // heuristic: is this a real edge or a model artifact?
 }
 
 export interface WeatherConfig {
@@ -93,6 +95,8 @@ export interface WeatherConfig {
   bankrollUsd: number;
   fractionalKelly: number;
   maxFractionPerTrade: number;
+  minContracts: number;          // skip edges you can't fill at least this many of
+  includeToday: boolean;         // include same-day (near-resolved) markets
   cities?: string[];             // optional subset of series tickers
 }
 
@@ -115,6 +119,7 @@ export async function findWeatherEdges(
   const forecastErrors: string[] = [];
   const citiesScanned: string[] = [];
   let marketsScored = 0;
+  const todayStr = localDateString(new Date());
 
   for (const station of stations) {
     // Forecast highs for this station (date → high °F)
@@ -144,6 +149,9 @@ export async function findWeatherEdges(
     for (const m of markets) {
       const date = parseTickerDate(m.ticker);
       if (!date) continue;
+      // Same-day markets are near-resolved (the high has mostly happened) —
+      // comparing them to a forecast produces false edges. Skip unless asked.
+      if (!cfg.includeToday && date <= todayStr) continue;
       const forecast = forecasts.get(date);
       if (!forecast) continue;              // only near-term dates have forecasts
 
@@ -158,6 +166,13 @@ export async function findWeatherEdges(
 
       const decision = evaluate(quote, modelProb, cfg);
       if (!decision || decision.net < cfg.minEdge) continue;
+      if (decision.availableContracts < cfg.minContracts) continue;
+
+      // A "value" edge = buying cheap (≤25¢) a bin the model likes more than the
+      // market. A "suspect" edge = betting NO against the market's favored bin,
+      // which usually just reflects our uncertainty assumption, not real signal.
+      const trust: 'value' | 'suspect' =
+        decision.side === 'YES' && decision.entryPrice <= 25 ? 'value' : 'suspect';
 
       edges.push({
         city: station.city,
@@ -173,11 +188,17 @@ export async function findWeatherEdges(
         edge: decision.net,
         entryPrice: decision.entryPrice,
         stakeUsd: decision.stakeUsd,
+        availableContracts: decision.availableContracts,
+        trust,
       });
     }
   }
 
-  edges.sort((a, b) => b.edge - a.edge);
+  // Value edges first, then by size of edge
+  edges.sort((a, b) => {
+    if (a.trust !== b.trust) return a.trust === 'value' ? -1 : 1;
+    return b.edge - a.edge;
+  });
   return { edges, citiesScanned, marketsScored, forecastErrors };
 }
 
@@ -196,6 +217,8 @@ function isPrice(x: number): boolean {
 interface Quote {
   yesAsk: number;
   noAsk: number;
+  yesAskSize: number;      // contracts offered
+  noAskSize: number;
   marketProbYes: number;   // implied YES probability for display
 }
 
@@ -216,7 +239,13 @@ function getQuote(m: any): Quote | null {
   else if (isPrice(last)) marketProbYes = last;
   else return null;
 
-  return { yesAsk, noAsk, marketProbYes };
+  return {
+    yesAsk,
+    noAsk,
+    yesAskSize: Math.round((num(m.yes_ask_size_fp) || 0) / 100),
+    noAskSize: Math.round((num(m.no_ask_size_fp) || 0) / 100),
+    marketProbYes,
+  };
 }
 
 // Choose the side with the best post-fee edge, priced at the ASK you'd actually
@@ -225,16 +254,16 @@ function evaluate(
   q: Quote,
   modelProb: number,
   cfg: WeatherConfig,
-): { side: 'YES' | 'NO'; net: number; entryPrice: number; stakeUsd: number; marketProb: number } | null {
-  const options: { side: 'YES' | 'NO'; ask: number; win: number }[] = [];
-  if (isPrice(q.yesAsk)) options.push({ side: 'YES', ask: q.yesAsk, win: modelProb });
-  if (isPrice(q.noAsk)) options.push({ side: 'NO', ask: q.noAsk, win: 1 - modelProb });
+): { side: 'YES' | 'NO'; net: number; entryPrice: number; stakeUsd: number; marketProb: number; availableContracts: number } | null {
+  const options: { side: 'YES' | 'NO'; ask: number; win: number; size: number }[] = [];
+  if (isPrice(q.yesAsk)) options.push({ side: 'YES', ask: q.yesAsk, win: modelProb, size: q.yesAskSize });
+  if (isPrice(q.noAsk)) options.push({ side: 'NO', ask: q.noAsk, win: 1 - modelProb, size: q.noAskSize });
 
-  let best: { side: 'YES' | 'NO'; net: number; ask: number; win: number } | null = null;
+  let best: { side: 'YES' | 'NO'; net: number; ask: number; win: number; size: number } | null = null;
   for (const o of options) {
     const fee = 0.07 * o.ask * (1 - o.ask);
     const net = o.win - o.ask - fee;         // expected edge per $1 contract
-    if (!best || net > best.net) best = { side: o.side, net, ask: o.ask, win: o.win };
+    if (!best || net > best.net) best = { side: o.side, net, ask: o.ask, win: o.win, size: o.size };
   }
   if (!best) return null;
 
@@ -244,7 +273,15 @@ function evaluate(
     entryPrice: Math.round(best.ask * 100),
     stakeUsd: kellyStake(best.ask, best.win, cfg),
     marketProb: q.marketProbYes,
+    availableContracts: best.size,
   };
+}
+
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Fractional Kelly with hard cap. price = ask you pay (0–1), winProb = model

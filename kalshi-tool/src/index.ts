@@ -5,11 +5,13 @@ import { printConsole, saveJson, saveHtml } from './weatherReport';
 
 async function main() {
   const cfg: WeatherConfig = {
-    sigma:               parseFloat(process.env.WEATHER_SIGMA         ?? '3'),
+    sigma:               parseFloat(process.env.WEATHER_SIGMA         ?? '2.5'),
     minEdge:             parseFloat(process.env.WEATHER_MIN_EDGE      ?? '0.08'),
     bankrollUsd:         parseFloat(process.env.BANKROLL_USD          ?? '1000'),
     fractionalKelly:     parseFloat(process.env.FRACTIONAL_KELLY      ?? '0.25'),
     maxFractionPerTrade: parseFloat(process.env.MAX_FRACTION_PER_TRADE ?? '0.05'),
+    minContracts:        parseInt(process.env.WEATHER_MIN_CONTRACTS   ?? '10', 10),
+    includeToday:        (process.env.WEATHER_INCLUDE_TODAY ?? 'false').toLowerCase() === 'true',
     cities: process.env.WEATHER_CITIES
       ? process.env.WEATHER_CITIES.split(',').map((c) => c.trim()).filter(Boolean)
       : undefined,

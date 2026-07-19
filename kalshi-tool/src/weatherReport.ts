@@ -20,22 +20,36 @@ export function printConsole(result: WeatherRunResult): void {
     return;
   }
 
+  const value = result.edges.filter((e) => e.trust === 'value');
+  const suspect = result.edges.filter((e) => e.trust === 'suspect');
+
   console.log('\n' + divider);
-  result.edges.forEach((e, i) => {
-    console.log(`\n#${i + 1}  ${e.city} — ${e.date}`);
-    console.log(`     ${e.title}`);
-    console.log(`     Market: "${e.boundLabel}"`);
-    console.log(`     Forecast high: ${e.forecastHigh}°F (${e.shortForecast})`);
-    console.log(
-      `     Model says YES ${(e.modelProb * 100).toFixed(0)}%  vs  Market ${(e.marketProb * 100).toFixed(0)}%`,
-    );
-    console.log(
-      `     → BUY ${e.side} @ ${e.entryPrice}¢   |   edge ${(e.edge * 100).toFixed(1)}%` +
-      `   |   suggested stake $${e.stakeUsd.toFixed(2)}`,
-    );
-    console.log('\n' + divider);
-  });
+  console.log('\n✅ VALUE EDGES — cheap bins the forecast likes more than the market');
+  console.log('   (the trustworthy signals: buying underpriced outcomes)\n');
+  if (value.length === 0) console.log('   (none this run)\n');
+  value.forEach((e, i) => printEdge(e, i, divider));
+
+  console.log('\n' + divider);
+  console.log('\n⚠️  SUSPECT EDGES — betting NO against the market\'s favored bin');
+  console.log('   (usually just reflects our uncertainty assumption, not real edge —');
+  console.log('    treat these with heavy skepticism)\n');
+  if (suspect.length === 0) console.log('   (none this run)\n');
+  suspect.forEach((e, i) => printEdge(e, i, divider));
   console.log('');
+}
+
+function printEdge(e: WeatherEdge, i: number, divider: string): void {
+  console.log(`#${i + 1}  ${e.city} — ${e.date}`);
+  console.log(`     ${e.title}`);
+  console.log(`     Market bin: "${e.boundLabel}"  |  Forecast high: ${e.forecastHigh}°F (${e.shortForecast})`);
+  console.log(
+    `     Model YES ${(e.modelProb * 100).toFixed(0)}%  vs  Market ${(e.marketProb * 100).toFixed(0)}%`,
+  );
+  console.log(
+    `     → BUY ${e.side} @ ${e.entryPrice}¢   |   edge ${(e.edge * 100).toFixed(1)}%` +
+    `   |   ${e.availableContracts} contracts offered   |   stake $${e.stakeUsd.toFixed(2)}`,
+  );
+  console.log('\n' + divider);
 }
 
 export function saveJson(result: WeatherRunResult, outputDir: string): string {
@@ -91,6 +105,11 @@ function renderHtml(result: WeatherRunResult): string {
   .action { font-size: 1rem; font-weight: 600; padding: .6rem .8rem; border-radius: 8px;
     background: #10261a; border: 1px solid #1c5238; color: #8ef0b4; display: flex;
     justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .card.suspect { opacity: .82; }
+  .card.suspect .action { background: #2a1a10; border-color: #52381c; color: #f0c48e; }
+  .trust { font-size: .68rem; padding: .1rem .45rem; border-radius: 999px; margin-left: .4rem; vertical-align: middle; }
+  .trust.tv { background: #14432a; color: #6fdf9f; }
+  .trust.ts { background: #4a3a12; color: #ffce6b; }
   .empty { background: #171a23; border: 1px solid #262a36; border-radius: 12px;
     padding: 2rem; text-align: center; color: #9aa0ad; }
   .disclaimer { margin-top: 2rem; font-size: .78rem; color: #6b7280;
@@ -118,9 +137,12 @@ function renderHtml(result: WeatherRunResult): string {
 
 function cardHtml(e: WeatherEdge, i: number): string {
   const cls = e.edge >= 0.15 ? 'e-big' : e.edge >= 0.08 ? 'e-mid' : 'e-small';
-  return `  <div class="card">
+  const badge = e.trust === 'value'
+    ? '<span class="trust tv">✅ value</span>'
+    : '<span class="trust ts">⚠️ suspect</span>';
+  return `  <div class="card ${e.trust}">
     <div class="top">
-      <span class="city">#${i + 1} · ${escapeHtml(e.city)} · ${e.date}</span>
+      <span class="city">#${i + 1} · ${escapeHtml(e.city)} · ${e.date} ${badge}</span>
       <span class="edge ${cls}">${(e.edge * 100).toFixed(1)}% edge</span>
     </div>
     <div class="title">${escapeHtml(e.title)} &nbsp;—&nbsp; market bin: <b>${escapeHtml(e.boundLabel)}</b></div>
@@ -130,7 +152,7 @@ function cardHtml(e: WeatherEdge, i: number): string {
       <div class="box"><div class="k">Market YES</div><div class="v mk">${(e.marketProb * 100).toFixed(0)}%</div></div>
     </div>
     <div class="action">
-      <span>BUY ${e.side} @ ${e.entryPrice}¢</span>
+      <span>BUY ${e.side} @ ${e.entryPrice}¢ · ${e.availableContracts} offered</span>
       <span>suggested stake $${e.stakeUsd.toFixed(2)}</span>
     </div>
   </div>`;
