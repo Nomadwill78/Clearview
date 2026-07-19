@@ -1,74 +1,89 @@
-# Kalshi ↔ Polymarket Divergence Finder
+# Kalshi Edge Tools
 
-Finds prediction markets where **Kalshi and Polymarket disagree on the same event**. When the two biggest prediction markets price an identical outcome differently, one side is likely mispriced — and that gap is the closest thing to a real edge a regular bettor can find.
+Two ways to find mispriced Kalshi markets:
 
-Each run produces a ranked, browser-readable report of these divergences.
+1. **Weather Edge** (`npm start`) — compares the official National Weather Service forecast to Kalshi's daily temperature markets. Objective, data-backed, no AI needed.
+2. **Polymarket Divergence** (`npm run divergence`) — flags events where Kalshi and Polymarket price the same outcome differently.
 
-## How it works
+Both output a clean, browser-readable HTML report to `./reports/`.
 
-1. Fetches all liquid **Kalshi** markets (your authenticated API key)
-2. Fetches all liquid **Polymarket** markets (free public API — no key needed)
-3. Text-matches markets that look like the same event (cheap prefilter)
-4. Uses **Claude** to confirm each match is truly the same wager, and flags whether the YES sides are aligned or inverted
-5. Compares the two prices and reports the biggest gaps, ranked by size × match-confidence × liquidity
+---
 
-## Setup
+## Weather Edge (the main tool)
+
+Kalshi runs daily high-temperature markets for several cities, split into temperature bins (e.g. "90° to 91°", "92° or above"). This tool:
+
+1. Pulls the **NWS forecast high** for each city (free, no API key)
+2. Turns that single forecast into a probability across every bin (normal distribution around the forecast, ±`WEATHER_SIGMA`°F)
+3. Compares the model's probability to Kalshi's price for each bin
+4. Reports where they disagree most — after subtracting Kalshi's trading fee — with a suggested Kelly-sized stake
+
+Cities covered: **NYC, Chicago, Miami, LA, Austin, Denver, Philadelphia** (more can be added in `src/weather.ts`).
+
+### Run it
 
 ```bash
 cd kalshi-tool
 npm install
-cp .env.example .env      # then edit .env with your keys
-```
-
-You need:
-- **Kalshi API key** — key ID + the private-key `.txt` file (Settings → API Keys in Kalshi)
-- **Anthropic API key** — required; it powers the market matching ([console.anthropic.com](https://console.anthropic.com))
-
-## Run
-
-```bash
+cp .env.example .env      # fill in your Kalshi key + private-key path
 npm start
 ```
 
-Outputs to `./reports/`:
-- **`divergences-<week>.html`** ← open this in your browser (the main deliverable)
-- `divergences-<week>.json` ← raw data
+Open the `weather-edges-<date>.html` file it prints. Each card shows the forecast high, the model's probability, the market's price, and a **BUY YES/NO @ Xc** suggestion with a stake.
 
-## Reading the report
+### How to read the edge
 
-Each card shows one event both venues cover, with:
-- **Gap** — how many percentage points apart the two prices are (bigger = more potential edge)
-- **Match confidence** — high / medium / low, how sure the AI is that both rows are the same wager. **Always click through and read both markets' rules on a low-confidence match.**
-- Both venues' YES prices, and which one prices it lower
-- A direct link to the Polymarket market
+> **Denver — 92-93° bin**
+> Forecast high: 94°F · Model YES: 23% · Market YES: 10%
+> → **BUY YES @ 10¢** · edge 12% · stake $18
+
+The model thinks that bin is more likely (23%) than the market is charging for (10¢). That 13-point gap, minus fees, is the edge.
+
+---
+
+## Polymarket Divergence
+
+Finds the same event priced differently on Kalshi vs Polymarket. Requires `ANTHROPIC_API_KEY` (Claude confirms two markets are truly the same wager).
+
+```bash
+npm run divergence
+```
+
+---
 
 ## Configuration (`.env`)
 
+**Weather:**
 | Variable | Default | Meaning |
 |---|---|---|
-| `KALSHI_MIN_VOLUME_24H` | `200` | Min Kalshi 24h volume (contracts) |
-| `POLY_MIN_VOLUME_24H` | `500` | Min Polymarket 24h volume (USD) |
-| `MIN_GAP_POINTS` | `5` | Only report gaps at least this wide |
-| `MAX_DAYS_TO_CLOSE` | `180` | Ignore markets resolving further out |
-| `MAX_MATCH_CHECKS` | `60` | Max AI checks per run (controls cost) |
-| `TOP_N_MARKETS` | `15` | How many divergences to show |
+| `WEATHER_SIGMA` | `3` | Forecast uncertainty in °F |
+| `WEATHER_MIN_EDGE` | `0.08` | Minimum edge to report (8 pts) |
+| `BANKROLL_USD` | `1000` | For Kelly stake sizing |
+| `FRACTIONAL_KELLY` | `0.25` | Quarter-Kelly (safer) |
+| `MAX_FRACTION_PER_TRADE` | `0.05` | Max 5% of bankroll per bet |
+| `WEATHER_CITIES` | (all) | Optional: limit to specific series |
 
 ## Important
 
-This tool **surfaces price differences — it does not guarantee winning bets.** Two markets can legitimately differ because their rules or resolution dates differ slightly, so the AI match is a helpful filter, not proof. Always read both markets yourself before acting. Prediction market trading carries real risk of loss.
+These tools **surface where your model disagrees with the market — they do not guarantee winning bets.** The weather edge is only as good as the forecast and the uncertainty assumption; the Polymarket match is only as good as the AI's judgment that two markets are identical. Always verify each market's resolution rules yourself. Prediction market trading carries real risk of loss.
 
 ## Project structure
 
 ```
 kalshi-tool/
 ├── src/
-│   ├── index.ts             — main flow: fetch → match → compare → report
-│   ├── kalshi.ts            — Kalshi API client (RSA-signed auth)
-│   ├── polymarket.ts        — Polymarket public API client
-│   ├── match.ts             — text-similarity prefilter
-│   ├── claude.ts            — AI match confirmation
-│   ├── divergenceReport.ts  — console + HTML + JSON output
-│   └── types.ts             — shared types
-├── kalshi_advisor.py        — standalone Python advisor (Kelly sizing, separate tool)
+│   ├── index.ts            — WEATHER tool entry (npm start)
+│   ├── weather.ts          — stations, bin parsing, probability model, edge calc
+│   ├── nws.ts              — National Weather Service client
+│   ├── weatherReport.ts    — weather console + HTML report
+│   ├── divergenceMain.ts   — POLYMARKET tool entry (npm run divergence)
+│   ├── polymarket.ts       — Polymarket API client
+│   ├── match.ts            — text-similarity prefilter
+│   ├── divergenceReport.ts — divergence console + HTML report
+│   ├── kalshi.ts           — Kalshi API client (RSA-signed auth)
+│   ├── claude.ts           — AI market-match confirmation
+│   ├── weather_probe.ts    — diagnostic: list Kalshi weather series
+│   └── types.ts            — shared types
+├── kalshi_advisor.py       — standalone Python advisor (separate experiment)
 └── .env.example
 ```

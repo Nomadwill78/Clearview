@@ -5,6 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "ts-node src/index.ts",
+    "weather": "ts-node src/index.ts",
+    "divergence": "ts-node src/divergenceMain.ts",
+    "probe": "ts-node src/weather_probe.ts",
     "build": "tsc",
     "run:built": "node dist/index.js",
     "dev": "ts-node --watch src/index.ts"
