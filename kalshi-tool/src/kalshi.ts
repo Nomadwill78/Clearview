@@ -136,6 +136,20 @@ export class KalshiClient {
 
     return markets;
   }
+
+  // Generic authenticated GET for any v2 resource (markets, events, series…).
+  async apiGet(resource: string, query: Record<string, string> = {}): Promise<any> {
+    const signPath = `/trade-api/v2/${resource}`;
+    const qs = new URLSearchParams(query).toString();
+    const url = `${BASE_URL}/${resource}${qs ? `?${qs}` : ''}`;
+    const res = await fetch(url, {
+      headers: { ...this.authHeaders('GET', signPath), 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      throw new Error(`Kalshi ${resource} fetch failed (${res.status}): ${await res.text()}`);
+    }
+    return res.json();
+  }
 }
 
 function sleep(ms: number): Promise<void> {
