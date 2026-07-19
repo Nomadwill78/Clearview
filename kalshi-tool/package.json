@@ -7,6 +7,7 @@
     "start": "ts-node src/index.ts",
     "weather": "ts-node src/index.ts",
     "divergence": "ts-node src/divergenceMain.ts",
+    "watchdog": "ts-node src/watchdog.ts",
     "probe": "ts-node src/weather_probe.ts",
     "build": "tsc",
     "run:built": "node dist/index.js",

@@ -51,6 +51,27 @@ npm run divergence
 
 ---
 
+## Watchdog (automated alerts)
+
+Runs the weather + divergence checks on a schedule in the cloud (GitHub Actions) and **only pings you when it finds a real edge** — by opening a GitHub issue, which GitHub emails you. No email/SMTP setup needed.
+
+Run it manually any time:
+```bash
+npm run watchdog     # quiet unless something crosses the alert threshold
+```
+
+### One-time cloud setup
+
+1. **Add three repository secrets** (GitHub → your repo → Settings → Secrets and variables → Actions → New repository secret):
+   - `KALSHI_API_KEY_ID` — your Kalshi key ID
+   - `KALSHI_PRIVATE_KEY` — the **contents** of your Kalshi private-key `.txt` file (open it, copy everything including the `-----BEGIN…` / `-----END…` lines, paste)
+   - `ANTHROPIC_API_KEY` — your Claude key
+2. **Merge this branch to `main`.** GitHub only runs scheduled workflows from the default branch.
+3. Done. The watchdog runs twice a day (`.github/workflows/kalshi-watchdog.yml`) and emails you an issue only when it finds an edge.
+
+**Test it now:** GitHub → Actions tab → "Kalshi Watchdog" → Run workflow.
+**Tune how often it pings:** edit `ALERT_WEATHER_MIN_EDGE` and `ALERT_MIN_GAP_POINTS` in the workflow file (lower = more alerts).
+
 ## Configuration (`.env`)
 
 **Weather:**

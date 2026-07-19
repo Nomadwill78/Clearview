@@ -1,0 +1,48 @@
+name: Kalshi Watchdog
+
+# Runs the weather + cross-venue divergence checks on a schedule. Stays silent
+# unless it finds a real edge, in which case it opens a GitHub issue — GitHub
+# emails you automatically. No SMTP / email credentials needed.
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 14:00 UTC daily (~10am ET / 7am PT)
+    - cron: '0 22 * * *'   # 22:00 UTC daily (~6pm ET / 3pm PT)
+  workflow_dispatch: {}     # lets you run it manually from the Actions tab
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        working-directory: kalshi-tool
+        run: npm install
+
+      - name: Run watchdog
+        working-directory: kalshi-tool
+        env:
+          KALSHI_API_KEY_ID: ${{ secrets.KALSHI_API_KEY_ID }}
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Alert thresholds — tune these to get pinged more or less often
+          ALERT_WEATHER_MIN_EDGE: '0.10'
+          ALERT_MIN_GAP_POINTS: '8'
+        run: npm run watchdog
+
+      - name: Open an issue if edges were found
+        if: ${{ hashFiles('kalshi-tool/reports/alert.md') != '' }}
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "🔔 Kalshi watchdog: edge found"
+          content-filepath: kalshi-tool/reports/alert.md
+          labels: kalshi-edge
