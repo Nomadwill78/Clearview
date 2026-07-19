@@ -1,138 +1,155 @@
 import { KalshiMarket, SafetyDetails, ScoredMarket } from './types';
 
-const WEIGHTS = {
-  probability: 0.40,
-  liquidity:   0.30,
-  spread:      0.20,
-  time:        0.10,
-} as const;
-
-const MAX_VOLUME_REFERENCE  = 5_000;  // contracts at which liquidity saturates
-const OPTIMAL_DAYS_MAX      = 30;
-const MAX_DAYS              = 365;
-
-export function scoreMarket(market: KalshiMarket): ScoredMarket | null {
-  const midPrice = calcMidPrice(market);
-  if (midPrice === null) return null;
-
-  const daysToClose = calcDaysToClose(market.close_time);
-  if (daysToClose < 0) return null;
-
-  const spread = calcSpread(market);
-  const details = buildSafetyDetails(market, midPrice, daysToClose, spread);
-  const safetyScore = calcWeightedScore(details);
-  const recommendedPosition = midPrice >= 0.5 ? 'YES' : 'NO';
-
-  // Entry price in cents (display convention) — convert from dollars
-  const recommendedEntry = recommendedPosition === 'YES'
-    ? Math.round((market.yes_bid_dollars ?? 0) * 100)
-    : Math.round((market.no_bid_dollars ?? 0) * 100);
-
-  return {
-    ...market,
-    safetyScore,
-    safetyDetails: details,
-    recommendedPosition,
-    recommendedEntry,
-  };
+export interface SafetyGates {
+  minConsensus: number;    // e.g. 0.88 — dominant side must be ≥ this probability
+  maxHoursToExpiry: number; // e.g. 48 — discard markets resolving further out
+  maxSpreadCents: number;  // e.g. 2 — bid-ask spread ceiling in cents
+  minVolume24h: number;    // e.g. 5000 — minimum 24h contract volume
 }
 
-export function rankMarkets(
-  markets: KalshiMarket[],
-  minProbabilitySkew = 0.65,
-): ScoredMarket[] {
-  const scored: ScoredMarket[] = [];
+export const DEFAULT_GATES: SafetyGates = {
+  minConsensus:    0.88,
+  maxHoursToExpiry: 48,
+  maxSpreadCents:   2,
+  minVolume24h:     5000,
+};
 
-  for (const m of markets) {
-    const result = scoreMarket(m);
-    if (!result) continue;
+// ---------------------------------------------------------------------------
+// Hard-gate filter — all three must pass or market is rejected
+// ---------------------------------------------------------------------------
 
-    const { midPrice } = result.safetyDetails;
-    const dominantProb = Math.max(midPrice, 1 - midPrice);
-    if (dominantProb < minProbabilitySkew) continue;
+interface GateResult {
+  passed: boolean;
+  failReason?: string;
+  midPrice: number;
+  spreadCents: number;
+  hoursToExpiry: number;
+  volume24h: number;
+}
 
-    scored.push(result);
+function applyGates(market: KalshiMarket, gates: SafetyGates): GateResult {
+  const bid = market.yes_bid_dollars ?? 0;
+  const ask = market.yes_ask_dollars ?? 0;
+
+  if (bid <= 0 || ask <= 0 || ask < bid) {
+    return { passed: false, failReason: 'no valid price', midPrice: 0, spreadCents: 0, hoursToExpiry: 0, volume24h: 0 };
   }
 
-  return scored.sort((a, b) => b.safetyScore - a.safetyScore);
+  const midPrice      = (bid + ask) / 2;
+  const spreadCents   = Math.round((ask - bid) * 100);
+  const dominantProb  = Math.max(midPrice, 1 - midPrice);
+  const hoursToExpiry = calcHoursToClose(market.close_time);
+  const volume24h     = (market.volume_24h_fp ?? 0) / 100;
+
+  // Gate 1: Extreme consensus
+  if (dominantProb < gates.minConsensus) {
+    return { passed: false, failReason: `consensus ${(dominantProb * 100).toFixed(1)}% < ${(gates.minConsensus * 100).toFixed(0)}%`, midPrice, spreadCents, hoursToExpiry, volume24h };
+  }
+
+  // Gate 2: Time decay protection
+  if (hoursToExpiry > gates.maxHoursToExpiry) {
+    return { passed: false, failReason: `${hoursToExpiry.toFixed(0)}h until expiry > ${gates.maxHoursToExpiry}h limit`, midPrice, spreadCents, hoursToExpiry, volume24h };
+  }
+
+  // Gate 3: Liquidity validation
+  if (spreadCents > gates.maxSpreadCents) {
+    return { passed: false, failReason: `spread ${spreadCents}¢ > ${gates.maxSpreadCents}¢ limit`, midPrice, spreadCents, hoursToExpiry, volume24h };
+  }
+  if (volume24h < gates.minVolume24h) {
+    return { passed: false, failReason: `24h volume ${volume24h.toFixed(0)} < ${gates.minVolume24h} limit`, midPrice, spreadCents, hoursToExpiry, volume24h };
+  }
+
+  return { passed: true, midPrice, spreadCents, hoursToExpiry, volume24h };
 }
 
 // ---------------------------------------------------------------------------
+// Rank among markets that pass all gates
+// ---------------------------------------------------------------------------
 
-function calcMidPrice(m: KalshiMarket): number | null {
-  // Prices are already in 0–1 dollar range
-  const bid = m.yes_bid_dollars;
-  const ask = m.yes_ask_dollars;
-  if (bid == null || ask == null || bid <= 0 || ask <= 0) return null;
-  if (ask < bid) return null;
-  return (bid + ask) / 2;
-}
+export function rankMarkets(
+  markets: KalshiMarket[],
+  gates: SafetyGates = DEFAULT_GATES,
+): { ranked: ScoredMarket[]; stats: FilterStats } {
+  const ranked: ScoredMarket[] = [];
+  const stats: FilterStats = { total: markets.length, passedGates: 0, failedConsensus: 0, failedTime: 0, failedLiquidity: 0 };
 
-function calcDaysToClose(closeTime: string): number {
-  const now = Date.now();
-  const close = new Date(closeTime).getTime();
-  return (close - now) / (1000 * 60 * 60 * 24);
-}
+  for (const m of markets) {
+    const gate = applyGates(m, gates);
 
-function calcSpread(m: KalshiMarket): number {
-  // Spread in cents for display
-  if (m.yes_ask_dollars == null || m.yes_bid_dollars == null) return 100;
-  return Math.round((m.yes_ask_dollars - m.yes_bid_dollars) * 100);
-}
+    if (!gate.passed) {
+      if (gate.failReason?.startsWith('consensus')) stats.failedConsensus++;
+      else if (gate.failReason?.includes('expiry')) stats.failedTime++;
+      else stats.failedLiquidity++;
+      continue;
+    }
 
-function buildSafetyDetails(
-  market: KalshiMarket,
-  midPrice: number,
-  daysToClose: number,
-  spread: number,
-): SafetyDetails {
-  const probabilityScore = Math.abs(midPrice - 0.5) / 0.5;
+    stats.passedGates++;
+    const details = buildSafetyDetails(m, gate);
+    const safetyScore = calcScore(details);
+    const recommendedPosition: 'YES' | 'NO' = gate.midPrice >= 0.5 ? 'YES' : 'NO';
+    const recommendedEntry = recommendedPosition === 'YES'
+      ? Math.round((m.yes_bid_dollars ?? 0) * 100)
+      : Math.round((m.no_bid_dollars ?? 0) * 100);
 
-  const volumeContracts = (market.volume_fp ?? 0) / 100;
-  const oiContracts     = (market.open_interest_fp ?? 0) / 100;
-
-  const volumeNorm = Math.min(
-    Math.log1p(volumeContracts) / Math.log1p(MAX_VOLUME_REFERENCE),
-    1,
-  );
-  const oiNorm = Math.min(
-    Math.log1p(oiContracts) / Math.log1p(MAX_VOLUME_REFERENCE),
-    1,
-  );
-  const liquidityScore = volumeNorm * 0.7 + oiNorm * 0.3;
-
-  // Penalise spreads wider than 10¢
-  const spreadScore = Math.max(0, 1 - spread / 10);
-
-  let timeScore: number;
-  if (daysToClose <= 0) {
-    timeScore = 0;
-  } else if (daysToClose <= OPTIMAL_DAYS_MAX) {
-    timeScore = 0.5 + (daysToClose / OPTIMAL_DAYS_MAX) * 0.5;
-    timeScore = Math.min(timeScore, 1.0);
-  } else {
-    const excess = daysToClose - OPTIMAL_DAYS_MAX;
-    timeScore = Math.max(0, 1 - excess / (MAX_DAYS - OPTIMAL_DAYS_MAX));
+    ranked.push({ ...m, safetyScore, safetyDetails: details, recommendedPosition, recommendedEntry });
   }
+
+  // Sort: highest safety score first (among gate survivors)
+  ranked.sort((a, b) => b.safetyScore - a.safetyScore);
+  return { ranked, stats };
+}
+
+export interface FilterStats {
+  total: number;
+  passedGates: number;
+  failedConsensus: number;
+  failedTime: number;
+  failedLiquidity: number;
+}
+
+// ---------------------------------------------------------------------------
+// Safety score for ranking survivors (not used as a gate)
+// ---------------------------------------------------------------------------
+
+function buildSafetyDetails(m: KalshiMarket, gate: GateResult): SafetyDetails {
+  const dominantProb = Math.max(gate.midPrice, 1 - gate.midPrice);
+
+  // Probability score: how close to certainty (0.88→0, 1.0→1)
+  const probabilityScore = (dominantProb - 0.88) / 0.12;
+
+  // Liquidity score: log-scaled 24h volume
+  const liquidityScore = Math.min(Math.log1p(gate.volume24h) / Math.log1p(50_000), 1);
+
+  // Spread score: 0¢ = 1.0, 2¢ = 0.0 (linear within the allowed range)
+  const spreadScore = Math.max(0, 1 - gate.spreadCents / 2);
+
+  // Time score: closer expiry = higher score (0h = 1.0, 48h = 0.0)
+  const timeScore = Math.max(0, 1 - gate.hoursToExpiry / 48);
 
   return {
     probabilityScore,
     liquidityScore,
     spreadScore,
     timeScore,
-    midPrice,
-    daysToClose,
-    spread,
-    rawVolume: volumeContracts,
-    rawOpenInterest: oiContracts,
+    midPrice: gate.midPrice,
+    daysToClose: gate.hoursToExpiry / 24,
+    spread: gate.spreadCents,
+    rawVolume: (m.volume_fp ?? 0) / 100,
+    rawOpenInterest: (m.open_interest_fp ?? 0) / 100,
   };
 }
 
-function calcWeightedScore(d: SafetyDetails): number {
+function calcScore(d: SafetyDetails): number {
   return (
-    d.probabilityScore * WEIGHTS.probability +
-    d.liquidityScore   * WEIGHTS.liquidity +
-    d.spreadScore      * WEIGHTS.spread +
-    d.timeScore        * WEIGHTS.time
+    d.probabilityScore * 0.40 +
+    d.liquidityScore   * 0.30 +
+    d.spreadScore      * 0.20 +
+    d.timeScore        * 0.10
   );
+}
+
+function calcHoursToClose(closeTime: string): number {
+  const now = Date.now();
+  const close = new Date(closeTime).getTime();
+  return (close - now) / (1000 * 60 * 60);
 }

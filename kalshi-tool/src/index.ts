@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { KalshiClient } from './kalshi';
-import { rankMarkets } from './scoring';
+import { rankMarkets, DEFAULT_GATES, SafetyGates } from './scoring';
 import { explainSafeBet, generateWeeklySummary } from './claude';
 import { buildReport, printReport, saveReport } from './report';
 
@@ -11,65 +11,79 @@ async function main() {
   const apiKeyId         = process.env.KALSHI_API_KEY_ID;
   const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
   const topN             = parseInt(process.env.TOP_N_MARKETS ?? '10', 10);
-  const minVolume   = parseInt(process.env.MIN_VOLUME ?? '0', 10);
-  const minSkew     = parseFloat(process.env.MIN_PROBABILITY_SKEW ?? '0.65');
-  const outputDir   = process.env.OUTPUT_DIR ?? './reports';
+  const outputDir        = process.env.OUTPUT_DIR ?? './reports';
+
+  // ── Safety gates (all configurable via .env) ────────────────────────────
+  const gates: SafetyGates = {
+    minConsensus:     parseFloat(process.env.MIN_CONSENSUS      ?? String(DEFAULT_GATES.minConsensus)),
+    maxHoursToExpiry: parseInt(process.env.MAX_HOURS_TO_EXPIRY  ?? String(DEFAULT_GATES.maxHoursToExpiry), 10),
+    maxSpreadCents:   parseInt(process.env.MAX_SPREAD_CENTS     ?? String(DEFAULT_GATES.maxSpreadCents), 10),
+    minVolume24h:     parseInt(process.env.MIN_VOLUME_24H       ?? String(DEFAULT_GATES.minVolume24h), 10),
+  };
 
   const missingAnthropic = !process.env.ANTHROPIC_API_KEY;
   if (missingAnthropic) {
-    console.warn(
-      '⚠  ANTHROPIC_API_KEY not set — AI explanations will be skipped.\n' +
-      '   Add it to your .env file for full reports.',
-    );
+    console.warn('⚠  ANTHROPIC_API_KEY not set — AI explanations will be skipped.');
   }
 
-  // ── Kalshi ───────────────────────────────────────────────────────────────
+  // ── Fetch markets ────────────────────────────────────────────────────────
   console.log('🔍 Fetching open Kalshi markets…');
   const kalshi = new KalshiClient(email, password, apiKeyId, privateKeySource);
   await kalshi.authenticate();
 
-  const allMarkets = await kalshi.fetchOpenMarkets({ minVolume, maxPages: 20 });
-  console.log(`   Fetched ${allMarkets.length} markets with volume ≥ ${minVolume}`);
+  const allMarkets = await kalshi.fetchOpenMarkets({ maxPages: 20 });
+  console.log(`   Fetched ${allMarkets.length} active markets`);
 
-  // ── Scoring ──────────────────────────────────────────────────────────────
-  console.log('📊 Scoring markets for safety…');
-  const ranked = rankMarkets(allMarkets, minSkew);
-  console.log(
-    `   ${ranked.length} markets pass the ${(minSkew * 100).toFixed(0)}% probability threshold`,
-  );
+  // ── Apply hard gates ─────────────────────────────────────────────────────
+  console.log('🔒 Applying safety gates…');
+  console.log(`   Gate 1 — Consensus     ≥ ${(gates.minConsensus * 100).toFixed(0)}%`);
+  console.log(`   Gate 2 — Expiry        ≤ ${gates.maxHoursToExpiry}h`);
+  console.log(`   Gate 3 — Spread        ≤ ${gates.maxSpreadCents}¢  AND  24h volume ≥ ${gates.minVolume24h.toLocaleString()}`);
+
+  const { ranked, stats } = rankMarkets(allMarkets, gates);
+
+  console.log(`\n   Results:`);
+  console.log(`   ✓ Passed all gates : ${stats.passedGates}`);
+  console.log(`   ✗ Failed consensus : ${stats.failedConsensus}`);
+  console.log(`   ✗ Failed time gate : ${stats.failedTime}`);
+  console.log(`   ✗ Failed liquidity : ${stats.failedLiquidity}`);
+
+  if (ranked.length === 0) {
+    console.log('\n⚠  No markets passed all three gates right now.');
+    console.log('   Try loosening the thresholds in your .env:');
+    console.log('     MIN_CONSENSUS=0.80  MAX_HOURS_TO_EXPIRY=168  MAX_SPREAD_CENTS=5  MIN_VOLUME_24H=1000');
+    process.exit(0);
+  }
 
   const topMarkets = ranked.slice(0, topN);
 
   // ── AI Explanations ───────────────────────────────────────────────────────
   if (!missingAnthropic) {
-    console.log(`🤖 Generating Claude explanations for top ${topMarkets.length} bets…`);
+    console.log(`\n🤖 Generating Claude explanations for top ${topMarkets.length} bets…`);
     for (let i = 0; i < topMarkets.length; i++) {
       const m = topMarkets[i];
       process.stdout.write(`   [${i + 1}/${topMarkets.length}] ${m.ticker}… `);
       try {
         m.explanation = await explainSafeBet(m);
         console.log('✓');
-      } catch (err) {
+      } catch {
         console.log('✗ (skipped)');
         m.explanation = 'AI explanation unavailable.';
       }
-      // Small delay to stay within rate limits
       if (i < topMarkets.length - 1) await sleep(300);
     }
 
     console.log('📝 Generating weekly summary…');
-    const summary = await generateWeeklySummary(topMarkets, allMarkets.length);
-
-    const report = buildReport(topMarkets, allMarkets.length, summary);
+    const summary = await generateWeeklySummary(topMarkets, stats);
+    const report = buildReport(topMarkets, stats.total, summary);
     const savedPath = saveReport(report, outputDir);
     printReport(report);
     console.log(`💾 Report saved to: ${savedPath}`);
   } else {
-    // No Anthropic key — still print the scores
     const report = buildReport(
       topMarkets,
-      allMarkets.length,
-      `Top ${topN} safest open markets by probability skew + liquidity (no AI summary — set ANTHROPIC_API_KEY).`,
+      stats.total,
+      `Top ${topMarkets.length} markets passed all safety gates (set ANTHROPIC_API_KEY for AI explanations).`,
     );
     const savedPath = saveReport(report, outputDir);
     printReport(report);

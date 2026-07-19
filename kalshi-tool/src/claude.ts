@@ -44,19 +44,23 @@ Be specific and direct. No preamble like "This market is safe because". Start wi
 
 export async function generateWeeklySummary(
   markets: ScoredMarket[],
-  totalAnalyzed: number,
+  stats: { total: number; passedGates: number; failedConsensus: number; failedTime: number; failedLiquidity: number },
 ): Promise<string> {
   const topTitles = markets
     .slice(0, 5)
-    .map((m, i) => `${i + 1}. ${m.title} (${m.recommendedPosition} @ ${m.recommendedEntry}¢)`)
+    .map((m, i) => {
+      const prob = Math.max(m.safetyDetails.midPrice, 1 - m.safetyDetails.midPrice);
+      return `${i + 1}. ${m.title} — ${m.recommendedPosition} @ ${m.recommendedEntry}¢ (${(prob * 100).toFixed(1)}% implied, resolves in ${(m.safetyDetails.daysToClose * 24).toFixed(0)}h)`;
+    })
     .join('\n');
 
-  const prompt = `You are a prediction market analyst. Write a 3-sentence weekly overview of the safest Kalshi bets this week.
+  const prompt = `You are a prediction market analyst. Write a 3-sentence weekly overview of the safest Kalshi bets right now.
 
-Analyzed ${totalAnalyzed} open markets and surfaced these top picks:
+Screened ${stats.total} markets through 3 hard gates (≥88% consensus, ≤48h to expiry, ≤2¢ spread + ≥5k 24h volume).
+Only ${stats.passedGates} passed. Top picks:
 ${topTitles}
 
-Keep it punchy and actionable. Mention the general themes (economic, political, sports, etc.) and risk level.`;
+Be specific about the themes (economic data, sports, politics, etc.) and why these cleared such strict criteria. Keep it punchy.`;
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
