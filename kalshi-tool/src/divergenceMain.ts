@@ -19,7 +19,7 @@ async function main() {
   const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
 
   const kalshiMinVol24h  = parseFloat(process.env.KALSHI_MIN_VOLUME_24H ?? '0');     // contracts
-  const polyMinVol24h    = parseFloat(process.env.POLY_MIN_VOLUME_24H   ?? '500');   // USD
+  const polyMinVol24h    = parseFloat(process.env.POLY_MIN_VOLUME_24H   ?? '150');   // USD
   const minGapPoints     = parseFloat(process.env.MIN_GAP_POINTS        ?? '5');
   const maxDaysToClose   = parseFloat(process.env.MAX_DAYS_TO_CLOSE     ?? '365');
   const maxMatchChecks   = parseInt(process.env.MAX_MATCH_CHECKS        ?? '80', 10);
@@ -127,14 +127,15 @@ function buildKalshiPool(
   const pool: KalshiView[] = [];
 
   for (const m of markets) {
-    const bid = m.yes_bid_dollars ?? 0;
-    const ask = m.yes_ask_dollars ?? 0;
-    if (bid <= 0 || ask <= 0 || ask < bid) continue;
+    // Kalshi returns prices as strings — coerce explicitly.
+    const bid = Number(m.yes_bid_dollars);
+    const ask = Number(m.yes_ask_dollars);
+    if (!(bid > 0) || !(ask > 0) || ask < bid) continue;
 
     const yesProb = (bid + ask) / 2;
-    if (yesProb < 0.05 || yesProb > 0.95) continue; // skip near-resolved
+    if (yesProb < 0.03 || yesProb > 0.97) continue; // skip near-resolved
 
-    const vol24h = (m.volume_24h_fp ?? 0) / 100;
+    const vol24h = (Number(m.volume_24h_fp) || 0) / 100;
     if (vol24h < minVol24h) continue;
 
     const daysToClose = (new Date(m.close_time).getTime() - now) / (1000 * 60 * 60 * 24);
