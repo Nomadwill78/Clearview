@@ -18,26 +18,29 @@ async function main() {
   const apiKeyId         = process.env.KALSHI_API_KEY_ID;
   const privateKeySource = process.env.KALSHI_PRIVATE_KEY_PATH ?? process.env.KALSHI_PRIVATE_KEY;
 
-  const kalshiMinVol24h  = parseFloat(process.env.KALSHI_MIN_VOLUME_24H ?? '200');   // contracts
+  const kalshiMinVol24h  = parseFloat(process.env.KALSHI_MIN_VOLUME_24H ?? '0');     // contracts
   const polyMinVol24h    = parseFloat(process.env.POLY_MIN_VOLUME_24H   ?? '500');   // USD
   const minGapPoints     = parseFloat(process.env.MIN_GAP_POINTS        ?? '5');
-  const maxDaysToClose   = parseFloat(process.env.MAX_DAYS_TO_CLOSE     ?? '180');
-  const maxMatchChecks   = parseInt(process.env.MAX_MATCH_CHECKS        ?? '60', 10);
-  const topN             = parseInt(process.env.TOP_N_MARKETS           ?? '15', 10);
+  const maxDaysToClose   = parseFloat(process.env.MAX_DAYS_TO_CLOSE     ?? '365');
+  const maxMatchChecks   = parseInt(process.env.MAX_MATCH_CHECKS        ?? '80', 10);
+  const topN             = parseInt(process.env.TOP_N_MARKETS           ?? '20', 10);
   const outputDir        = process.env.OUTPUT_DIR ?? './reports';
+  const categories = (process.env.KALSHI_CATEGORIES
+    ?? 'Politics,Elections,Entertainment,World,Social')
+    .split(',').map((c) => c.trim()).filter(Boolean);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error('✗ ANTHROPIC_API_KEY is required — it powers the market matching. Add it to your .env.');
     process.exit(1);
   }
 
-  // ── 1. Kalshi markets ──────────────────────────────────────────────────────
-  console.log('🔍 Fetching Kalshi markets…');
+  // ── 1. Kalshi markets (politics/entertainment, by category) ─────────────────
+  console.log(`🔍 Fetching Kalshi markets in: ${categories.join(', ')}…`);
   const kalshi = new KalshiClient(email, password, apiKeyId, privateKeySource);
   await kalshi.authenticate();
-  const kalshiRaw = await kalshi.fetchOpenMarkets({ maxPages: 20 });
+  const kalshiRaw = await kalshi.fetchMarketsByCategory(categories, { maxPages: 25 });
   const kalshiPool = buildKalshiPool(kalshiRaw, kalshiMinVol24h, maxDaysToClose);
-  console.log(`   ${kalshiRaw.length} active → ${kalshiPool.length} liquid, comparable markets`);
+  console.log(`   ${kalshiRaw.length} quoted markets → ${kalshiPool.length} comparable`);
 
   // ── 2. Polymarket markets ──────────────────────────────────────────────────
   console.log('🔍 Fetching Polymarket markets…');

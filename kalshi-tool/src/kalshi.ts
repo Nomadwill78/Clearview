@@ -138,17 +138,70 @@ export class KalshiClient {
   }
 
   // Generic authenticated GET for any v2 resource (markets, events, series…).
+  // Retries on 429 (rate limit) with exponential backoff.
   async apiGet(resource: string, query: Record<string, string> = {}): Promise<any> {
     const signPath = `/trade-api/v2/${resource}`;
     const qs = new URLSearchParams(query).toString();
     const url = `${BASE_URL}/${resource}${qs ? `?${qs}` : ''}`;
-    const res = await fetch(url, {
-      headers: { ...this.authHeaders('GET', signPath), 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) {
-      throw new Error(`Kalshi ${resource} fetch failed (${res.status}): ${await res.text()}`);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await fetch(url, {
+        headers: { ...this.authHeaders('GET', signPath), 'Content-Type': 'application/json' },
+      });
+      if (res.status === 429) {
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      if (!res.ok) {
+        throw new Error(`Kalshi ${resource} fetch failed (${res.status}): ${await res.text()}`);
+      }
+      return res.json();
     }
-    return res.json();
+    throw new Error(`Kalshi ${resource} still rate-limited after retries`);
+  }
+
+  // Fetch open markets in the given categories via /events (nested markets),
+  // which is far more efficient than paging all markets. Returns markets that
+  // have a real two-sided quote within maxSpreadCents.
+  async fetchMarketsByCategory(
+    categories: string[],
+    opts: { maxPages?: number; maxSpreadCents?: number } = {},
+  ): Promise<KalshiMarket[]> {
+    const { maxPages = 25, maxSpreadCents = 15 } = opts;
+    const catSet = new Set(categories.map((c) => c.toLowerCase()));
+    const out: KalshiMarket[] = [];
+    let cursor: string | undefined;
+    let page = 0;
+
+    while (page < maxPages) {
+      const query: Record<string, string> = {
+        status: 'open',
+        limit: '200',
+        with_nested_markets: 'true',
+      };
+      if (cursor) query.cursor = cursor;
+
+      const data = await this.apiGet('events', query);
+      const events: any[] = data.events ?? [];
+
+      for (const ev of events) {
+        if (!catSet.has(String(ev.category ?? '').toLowerCase())) continue;
+        for (const m of ev.markets ?? []) {
+          const bid = Number(m.yes_bid_dollars) || 0;
+          const ask = Number(m.yes_ask_dollars) || 0;
+          if (bid <= 0 || ask <= 0 || ask < bid) continue;       // need a real quote
+          if ((ask - bid) * 100 > maxSpreadCents) continue;       // skip very wide spreads
+          out.push({ ...m, category: ev.category, event_title: ev.title } as KalshiMarket);
+        }
+      }
+
+      cursor = data.cursor;
+      page++;
+      if (!cursor || events.length === 0) break;
+      await sleep(350);   // stay under the rate limit
+    }
+
+    return out;
   }
 }
 

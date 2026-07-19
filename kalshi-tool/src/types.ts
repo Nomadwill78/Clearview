@@ -5,6 +5,7 @@ export interface KalshiMarket {
   yes_sub_title?: string;
   no_sub_title?: string;
   category?: string;
+  event_title?: string;
   status: string;
   // Prices in dollars (0.0–1.0 range = probability)
   yes_bid_dollars: number;
