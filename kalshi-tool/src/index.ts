@@ -5,7 +5,7 @@ import { printConsole, saveJson, saveHtml } from './weatherReport';
 
 async function main() {
   const cfg: WeatherConfig = {
-    sigma:               parseFloat(process.env.WEATHER_SIGMA         ?? '2.5'),
+    kernelSigma:         parseFloat(process.env.WEATHER_KERNEL        ?? '1.5'),
     minEdge:             parseFloat(process.env.WEATHER_MIN_EDGE      ?? '0.08'),
     bankrollUsd:         parseFloat(process.env.BANKROLL_USD          ?? '1000'),
     fractionalKelly:     parseFloat(process.env.FRACTIONAL_KELLY      ?? '0.25'),
@@ -18,8 +18,8 @@ async function main() {
   };
   const outputDir = process.env.OUTPUT_DIR ?? './reports';
 
-  console.log('🌦  Kalshi Weather Edge');
-  console.log(`   Forecast uncertainty: ±${cfg.sigma}°F  |  Min edge: ${(cfg.minEdge * 100).toFixed(0)}%  |  Bankroll: $${cfg.bankrollUsd}`);
+  console.log('🌦  Kalshi Weather Edge (ensemble-powered)');
+  console.log(`   Min edge: ${(cfg.minEdge * 100).toFixed(0)}%  |  Bankroll: $${cfg.bankrollUsd}  |  Min fillable: ${cfg.minContracts} contracts`);
 
   console.log('🔑 Authenticating with Kalshi…');
   const kalshi = new KalshiClient(
@@ -30,7 +30,7 @@ async function main() {
   );
   await kalshi.authenticate();
 
-  console.log('📡 Pulling NWS forecasts and Kalshi weather markets…');
+  console.log('📡 Pulling ensemble forecasts (Open-Meteo) and Kalshi weather markets…');
   const result = await findWeatherEdges(kalshi, cfg);
 
   printConsole(result);

@@ -6,7 +6,7 @@ export function printConsole(result: WeatherRunResult): void {
   const divider = '─'.repeat(72);
   console.log('\n');
   console.log('╔' + '═'.repeat(70) + '╗');
-  console.log('║' + center('KALSHI WEATHER EDGE — FORECAST vs MARKET', 70) + '║');
+  console.log('║' + center('KALSHI WEATHER EDGE — ENSEMBLE vs MARKET', 70) + '║');
   console.log('╚' + '═'.repeat(70) + '╝');
   console.log(`Cities scanned: ${result.citiesScanned.join(', ') || '(none)'}`);
   console.log(`Markets scored: ${result.marketsScored}  |  Edges found: ${result.edges.length}`);
@@ -15,41 +15,29 @@ export function printConsole(result: WeatherRunResult): void {
   }
 
   if (result.edges.length === 0) {
-    console.log('\nNo edges above the threshold this run. The market agrees with the forecast,');
-    console.log('or no near-term weather markets were quoted. Try lowering WEATHER_MIN_EDGE.\n');
+    console.log('\nNo edges above the threshold this run. The market agrees with the');
+    console.log('ensemble forecast — which usually means it is efficiently priced.\n');
     return;
   }
 
-  const value = result.edges.filter((e) => e.trust === 'value');
-  const suspect = result.edges.filter((e) => e.trust === 'suspect');
-
   console.log('\n' + divider);
-  console.log('\n✅ VALUE EDGES — cheap bins the forecast likes more than the market');
-  console.log('   (the trustworthy signals: buying underpriced outcomes)\n');
-  if (value.length === 0) console.log('   (none this run)\n');
-  value.forEach((e, i) => printEdge(e, i, divider));
-
-  console.log('\n' + divider);
-  console.log('\n⚠️  SUSPECT EDGES — betting NO against the market\'s favored bin');
-  console.log('   (usually just reflects our uncertainty assumption, not real edge —');
-  console.log('    treat these with heavy skepticism)\n');
-  if (suspect.length === 0) console.log('   (none this run)\n');
-  suspect.forEach((e, i) => printEdge(e, i, divider));
+  result.edges.forEach((e, i) => {
+    console.log(`\n#${i + 1}  ${e.city} — ${e.date}   [${e.confidence.toUpperCase()} confidence]`);
+    console.log(`     ${e.title}`);
+    console.log(`     Market bin: "${e.boundLabel}"`);
+    console.log(
+      `     Ensemble: median ${e.ensembleMedian}°F, range ${e.ensembleMin}–${e.ensembleMax}°F (${e.memberCount} members)`,
+    );
+    console.log(
+      `     Model YES ${(e.modelProb * 100).toFixed(0)}%  vs  Market ${(e.marketProb * 100).toFixed(0)}%`,
+    );
+    console.log(
+      `     → BUY ${e.side} @ ${e.entryPrice}¢   |   edge ${(e.edge * 100).toFixed(1)}%` +
+      `   |   ${e.availableContracts} offered   |   stake $${e.stakeUsd.toFixed(2)}`,
+    );
+    console.log('\n' + divider);
+  });
   console.log('');
-}
-
-function printEdge(e: WeatherEdge, i: number, divider: string): void {
-  console.log(`#${i + 1}  ${e.city} — ${e.date}`);
-  console.log(`     ${e.title}`);
-  console.log(`     Market bin: "${e.boundLabel}"  |  Forecast high: ${e.forecastHigh}°F (${e.shortForecast})`);
-  console.log(
-    `     Model YES ${(e.modelProb * 100).toFixed(0)}%  vs  Market ${(e.marketProb * 100).toFixed(0)}%`,
-  );
-  console.log(
-    `     → BUY ${e.side} @ ${e.entryPrice}¢   |   edge ${(e.edge * 100).toFixed(1)}%` +
-    `   |   ${e.availableContracts} contracts offered   |   stake $${e.stakeUsd.toFixed(2)}`,
-  );
-  console.log('\n' + divider);
 }
 
 export function saveJson(result: WeatherRunResult, outputDir: string): string {
@@ -71,7 +59,7 @@ export function saveHtml(result: WeatherRunResult, outputDir: string): string {
 function renderHtml(result: WeatherRunResult): string {
   const cards = result.edges.map((e, i) => cardHtml(e, i)).join('\n');
   const empty = result.edges.length === 0
-    ? `<p class="empty">No edges above the threshold this run — the market agrees with the forecast, or no near-term weather markets were quoted.</p>`
+    ? `<p class="empty">No edges above the threshold this run — the market agrees with the ensemble forecast, which usually means it's efficiently priced.</p>`
     : '';
 
   return `<!doctype html>
@@ -95,21 +83,22 @@ function renderHtml(result: WeatherRunResult): string {
   .city { font-weight: 700; font-size: 1.05rem; }
   .edge { font-size: 1.3rem; font-weight: 700; }
   .e-big { color: #6fdf9f; } .e-mid { color: #ffce6b; } .e-small { color: #74c0fc; }
-  .title { color: #c3c8d4; font-size: .9rem; margin: .4rem 0 .8rem; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6rem; margin-bottom: .8rem; }
+  .conf { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
+    padding: .12rem .5rem; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+  .c-high { background: #14432a; color: #6fdf9f; }
+  .c-medium { background: #4a3a12; color: #ffce6b; }
+  .c-low { background: #3a2530; color: #ff9db4; }
+  .title { color: #c3c8d4; font-size: .9rem; margin: .4rem 0 .5rem; }
+  .ens { font-size: .82rem; color: #9aa0ad; margin-bottom: .8rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .8rem; }
   @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
   .box { background: #11141c; border: 1px solid #232735; border-radius: 8px; padding: .6rem .75rem; }
   .box .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #8b93a3; }
   .box .v { font-size: 1.15rem; font-weight: 700; margin-top: .15rem; }
-  .fc { color: #74c0fc; } .md { color: #6fdf9f; } .mk { color: #ffce6b; }
+  .md { color: #6fdf9f; } .mk { color: #ffce6b; }
   .action { font-size: 1rem; font-weight: 600; padding: .6rem .8rem; border-radius: 8px;
     background: #10261a; border: 1px solid #1c5238; color: #8ef0b4; display: flex;
     justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-  .card.suspect { opacity: .82; }
-  .card.suspect .action { background: #2a1a10; border-color: #52381c; color: #f0c48e; }
-  .trust { font-size: .68rem; padding: .1rem .45rem; border-radius: 999px; margin-left: .4rem; vertical-align: middle; }
-  .trust.tv { background: #14432a; color: #6fdf9f; }
-  .trust.ts { background: #4a3a12; color: #ffce6b; }
   .empty { background: #171a23; border: 1px solid #262a36; border-radius: 12px;
     padding: 2rem; text-align: center; color: #9aa0ad; }
   .disclaimer { margin-top: 2rem; font-size: .78rem; color: #6b7280;
@@ -117,19 +106,19 @@ function renderHtml(result: WeatherRunResult): string {
 </style></head>
 <body><div class="wrap">
   <h1>Kalshi Weather Edge</h1>
-  <div class="meta">${today()} · ${result.citiesScanned.length} cities scanned ·
-    ${result.marketsScored} markets scored · ${result.edges.length} edges found</div>
+  <div class="meta">${today()} · ${result.citiesScanned.length} cities · ${result.marketsScored} markets scored · ${result.edges.length} edges · ensemble-powered</div>
   <div class="legend">
-    Each card compares the <b>official NWS forecast</b> to Kalshi's market price for a daily
-    high-temperature market. <b>Edge</b> is how much the forecast-based probability beats the
-    market price, after fees. Bigger edge = bigger disagreement. This is only as good as the
-    forecast and its uncertainty assumption — treat it as a starting point, not a guarantee.
+    Model probabilities come from the <b>GEFS ensemble</b> — ~31 independent forecast runs. Each bin's
+    probability is the share of members landing in it, so the uncertainty is <b>measured, not assumed</b>.
+    <b>Confidence</b> reflects how tightly the members agree (a wide spread = low confidence). <b>Edge</b>
+    is the model probability minus the market price, after fees. Always confirm the market's resolution
+    station and read its rules before trading.
   </div>
   ${empty}
   ${cards}
   <div class="disclaimer">
-    Model = normal distribution around the NWS forecast high. Real outcomes vary; forecasts miss.
-    Confirm each market resolves against the station this tool assumes before trading.
+    Model = share of ensemble members per temperature bin. Market makers may use similar data, so edges
+    can be small or fleeting. Suggested stake is capped by the contracts actually offered.
     Prediction market trading carries real risk of loss.
   </div>
 </div></body></html>`;
@@ -137,18 +126,15 @@ function renderHtml(result: WeatherRunResult): string {
 
 function cardHtml(e: WeatherEdge, i: number): string {
   const cls = e.edge >= 0.15 ? 'e-big' : e.edge >= 0.08 ? 'e-mid' : 'e-small';
-  const badge = e.trust === 'value'
-    ? '<span class="trust tv">✅ value</span>'
-    : '<span class="trust ts">⚠️ suspect</span>';
-  return `  <div class="card ${e.trust}">
+  return `  <div class="card">
     <div class="top">
-      <span class="city">#${i + 1} · ${escapeHtml(e.city)} · ${e.date} ${badge}</span>
+      <span class="city">#${i + 1} · ${escapeHtml(e.city)} · ${e.date}<span class="conf c-${e.confidence}">${e.confidence}</span></span>
       <span class="edge ${cls}">${(e.edge * 100).toFixed(1)}% edge</span>
     </div>
-    <div class="title">${escapeHtml(e.title)} &nbsp;—&nbsp; market bin: <b>${escapeHtml(e.boundLabel)}</b></div>
+    <div class="title">${escapeHtml(e.title)} &nbsp;—&nbsp; bin: <b>${escapeHtml(e.boundLabel)}</b></div>
+    <div class="ens">Ensemble: median <b>${e.ensembleMedian}°F</b>, range ${e.ensembleMin}–${e.ensembleMax}°F · ${e.memberCount} members</div>
     <div class="grid">
-      <div class="box"><div class="k">Forecast high</div><div class="v fc">${e.forecastHigh}°F</div></div>
-      <div class="box"><div class="k">Model YES</div><div class="v md">${(e.modelProb * 100).toFixed(0)}%</div></div>
+      <div class="box"><div class="k">Model YES (ensemble)</div><div class="v md">${(e.modelProb * 100).toFixed(0)}%</div></div>
       <div class="box"><div class="k">Market YES</div><div class="v mk">${(e.marketProb * 100).toFixed(0)}%</div></div>
     </div>
     <div class="action">

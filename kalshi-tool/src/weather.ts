@@ -1,9 +1,7 @@
 import { KalshiClient } from './kalshi';
-import { getForecastHighs } from './nws';
+import { getEnsembleHighs } from './openmeteo';
 
 // ── Station map ──────────────────────────────────────────────────────────────
-// Kalshi weather series → the station its market resolves against.
-// Coordinates target that station; verify against each market's rules if unsure.
 export interface Station {
   series: string;
   city: string;
@@ -24,8 +22,8 @@ export const STATIONS: Station[] = [
 // ── Market bound parsing (pure) ──────────────────────────────────────────────
 export type Bound =
   | { kind: 'bin'; low: number; high: number }
-  | { kind: 'above'; threshold: number }   // YES if high >= threshold
-  | { kind: 'below'; threshold: number };  // YES if high <= threshold
+  | { kind: 'above'; threshold: number }
+  | { kind: 'below'; threshold: number };
 
 export function parseBound(subTitle: string): Bound | null {
   const s = (subTitle ?? '').toLowerCase();
@@ -42,16 +40,21 @@ export function parseBound(subTitle: string): Bound | null {
   return null;
 }
 
-// Model probability that a bound resolves YES, given a forecast high and the
-// forecast uncertainty (sigma, °F). Uses a normal distribution + continuity
-// correction (temps are integer °F).
-export function modelYesProb(bound: Bound, forecastHigh: number, sigma: number): number {
-  const cdf = (x: number) => normalCdf((x - forecastHigh) / sigma);
-  switch (bound.kind) {
-    case 'bin':   return clamp01(cdf(bound.high + 0.5) - cdf(bound.low - 0.5));
-    case 'above': return clamp01(1 - cdf(bound.threshold - 0.5));
-    case 'below': return clamp01(cdf(bound.threshold + 0.5));
+// Probability a bound resolves YES, from the ensemble members. Each member is
+// smoothed by a small kernel (kernelSigma °F) to account for member discreteness
+// and station/rounding noise. The result is the average over all members.
+export function ensembleYesProb(bound: Bound, members: number[], kernelSigma: number): number {
+  if (members.length === 0) return 0;
+  const cdf = (x: number, mu: number) => normalCdf((x - mu) / kernelSigma);
+  let sum = 0;
+  for (const mi of members) {
+    switch (bound.kind) {
+      case 'bin':   sum += cdf(bound.high + 0.5, mi) - cdf(bound.low - 0.5, mi); break;
+      case 'above': sum += 1 - cdf(bound.threshold - 0.5, mi); break;
+      case 'below': sum += cdf(bound.threshold + 0.5, mi); break;
+    }
   }
+  return clamp01(sum / members.length);
 }
 
 // ── Ticker date parsing (pure) ───────────────────────────────────────────────
@@ -60,7 +63,6 @@ const MONTHS: Record<string, number> = {
   JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
 };
 
-// "KXHIGHNY-26JUL20-T84" → "2026-07-20"
 export function parseTickerDate(ticker: string): string | null {
   const tok = ticker.split('-')[1];
   const m = tok?.match(/^(\d{2})([A-Z]{3})(\d{2})$/);
@@ -77,27 +79,29 @@ export interface WeatherEdge {
   ticker: string;
   title: string;
   boundLabel: string;
-  forecastHigh: number;
-  shortForecast: string;
-  marketProb: number;    // implied prob market resolves YES
-  modelProb: number;     // our forecast-based prob
-  side: 'YES' | 'NO';    // which side to buy
-  edge: number;          // net edge after fee, for the chosen side
-  entryPrice: number;    // cents to buy the chosen side
+  ensembleMedian: number;
+  ensembleMin: number;
+  ensembleMax: number;
+  memberCount: number;
+  marketProb: number;
+  modelProb: number;
+  side: 'YES' | 'NO';
+  edge: number;
+  entryPrice: number;
   stakeUsd: number;
-  availableContracts: number;   // how many contracts are offered at the ask
-  trust: 'value' | 'suspect';   // heuristic: is this a real edge or a model artifact?
+  availableContracts: number;
+  confidence: 'high' | 'medium' | 'low';   // from ensemble agreement (spread)
 }
 
 export interface WeatherConfig {
-  sigma: number;                 // forecast uncertainty in °F
-  minEdge: number;               // minimum net edge to report (0–1)
+  kernelSigma: number;
+  minEdge: number;
   bankrollUsd: number;
   fractionalKelly: number;
   maxFractionPerTrade: number;
-  minContracts: number;          // skip edges you can't fill at least this many of
-  includeToday: boolean;         // include same-day (near-resolved) markets
-  cities?: string[];             // optional subset of series tickers
+  minContracts: number;
+  includeToday: boolean;
+  cities?: string[];
 }
 
 export interface WeatherRunResult {
@@ -122,17 +126,15 @@ export async function findWeatherEdges(
   const todayStr = localDateString(new Date());
 
   for (const station of stations) {
-    // Forecast highs for this station (date → high °F)
-    let forecasts;
+    let ensemble;
     try {
-      forecasts = await getForecastHighs(station.lat, station.lon);
+      ensemble = await getEnsembleHighs(station.lat, station.lon);
     } catch (e: any) {
       forecastErrors.push(`${station.city}: ${e.message}`);
       continue;
     }
     citiesScanned.push(station.city);
 
-    // Open markets in this weather series
     let markets: any[] = [];
     try {
       const data = await kalshi.apiGet('markets', {
@@ -149,30 +151,27 @@ export async function findWeatherEdges(
     for (const m of markets) {
       const date = parseTickerDate(m.ticker);
       if (!date) continue;
-      // Same-day markets are near-resolved (the high has mostly happened) —
-      // comparing them to a forecast produces false edges. Skip unless asked.
       if (!cfg.includeToday && date <= todayStr) continue;
-      const forecast = forecasts.get(date);
-      if (!forecast) continue;              // only near-term dates have forecasts
+
+      const day = ensemble.get(date);
+      if (!day) continue;
 
       const bound = parseBound(m.yes_sub_title);
       if (!bound) continue;
 
       const quote = getQuote(m);
-      if (!quote) continue;               // no tradeable price → skip
+      if (!quote) continue;
 
       marketsScored++;
-      const modelProb = modelYesProb(bound, forecast.highF, cfg.sigma);
+      const modelProb = ensembleYesProb(bound, day.members, cfg.kernelSigma);
 
       const decision = evaluate(quote, modelProb, cfg);
       if (!decision || decision.net < cfg.minEdge) continue;
       if (decision.availableContracts < cfg.minContracts) continue;
 
-      // A "value" edge = buying cheap (≤25¢) a bin the model likes more than the
-      // market. A "suspect" edge = betting NO against the market's favored bin,
-      // which usually just reflects our uncertainty assumption, not real signal.
-      const trust: 'value' | 'suspect' =
-        decision.side === 'YES' && decision.entryPrice <= 25 ? 'value' : 'suspect';
+      const spread = day.max - day.min;
+      const confidence: 'high' | 'medium' | 'low' =
+        spread <= 5 ? 'high' : spread <= 10 ? 'medium' : 'low';
 
       edges.push({
         city: station.city,
@@ -180,8 +179,10 @@ export async function findWeatherEdges(
         ticker: m.ticker,
         title: m.title,
         boundLabel: m.yes_sub_title,
-        forecastHigh: forecast.highF,
-        shortForecast: forecast.shortForecast,
+        ensembleMedian: day.median,
+        ensembleMin: day.min,
+        ensembleMax: day.max,
+        memberCount: day.members.length,
         marketProb: decision.marketProb,
         modelProb,
         side: decision.side,
@@ -189,23 +190,17 @@ export async function findWeatherEdges(
         entryPrice: decision.entryPrice,
         stakeUsd: decision.stakeUsd,
         availableContracts: decision.availableContracts,
-        trust,
+        confidence,
       });
     }
   }
 
-  // Value edges first, then by size of edge
-  edges.sort((a, b) => {
-    if (a.trust !== b.trust) return a.trust === 'value' ? -1 : 1;
-    return b.edge - a.edge;
-  });
+  edges.sort((a, b) => b.edge - a.edge);
   return { edges, citiesScanned, marketsScored, forecastErrors };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// Kalshi returns price fields as STRINGS — coerce explicitly to avoid "0.4"+"0.5"
-// string concatenation. A valid probability price is strictly between 0 and 1.
 function num(x: any): number {
   const n = Number(x);
   return Number.isFinite(n) ? n : NaN;
@@ -217,20 +212,18 @@ function isPrice(x: number): boolean {
 interface Quote {
   yesAsk: number;
   noAsk: number;
-  yesAskSize: number;      // contracts offered
+  yesAskSize: number;
   noAskSize: number;
-  marketProbYes: number;   // implied YES probability for display
+  marketProbYes: number;
 }
 
-// Build a tradeable quote. Requires a real ASK on at least one side (you can't
-// buy without an offer). Falls back to last trade only for display.
 function getQuote(m: any): Quote | null {
   const yesBid = num(m.yes_bid_dollars);
   const yesAsk = num(m.yes_ask_dollars);
   const noAsk = num(m.no_ask_dollars);
   const last = num(m.last_price_dollars);
 
-  if (!isPrice(yesAsk) && !isPrice(noAsk)) return null;   // nothing to buy
+  if (!isPrice(yesAsk) && !isPrice(noAsk)) return null;
 
   let marketProbYes: number;
   if (isPrice(yesBid) && isPrice(yesAsk)) marketProbYes = (yesBid + yesAsk) / 2;
@@ -248,8 +241,6 @@ function getQuote(m: any): Quote | null {
   };
 }
 
-// Choose the side with the best post-fee edge, priced at the ASK you'd actually
-// pay. Kalshi per-contract fee ≈ 0.07 * price * (1-price).
 function evaluate(
   q: Quote,
   modelProb: number,
@@ -262,12 +253,11 @@ function evaluate(
   let best: { side: 'YES' | 'NO'; net: number; ask: number; win: number; size: number } | null = null;
   for (const o of options) {
     const fee = 0.07 * o.ask * (1 - o.ask);
-    const net = o.win - o.ask - fee;         // expected edge per $1 contract
+    const net = o.win - o.ask - fee;
     if (!best || net > best.net) best = { side: o.side, net, ask: o.ask, win: o.win, size: o.size };
   }
   if (!best) return null;
 
-  // Kelly stake, but you can never deploy more than the offered size × price.
   const kelly = kellyStake(best.ask, best.win, cfg);
   const fillableUsd = best.size * best.ask;
   const stakeUsd = Math.round(Math.min(kelly, fillableUsd) * 100) / 100;
@@ -282,15 +272,6 @@ function evaluate(
   };
 }
 
-function localDateString(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-// Fractional Kelly with hard cap. price = ask you pay (0–1), winProb = model
-// probability that side wins.
 function kellyStake(price: number, winProb: number, cfg: WeatherConfig): number {
   if (price <= 0 || price >= 1) return 0;
   const b = (1 - price) / price;
@@ -300,11 +281,17 @@ function kellyStake(price: number, winProb: number, cfg: WeatherConfig): number 
   return Math.round(cfg.bankrollUsd * fraction * 100) / 100;
 }
 
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
 
-// Normal CDF via the Abramowitz-Stegun erf approximation (max error ~1.5e-7)
 function normalCdf(z: number): number {
   return 0.5 * (1 + erf(z / Math.SQRT2));
 }
