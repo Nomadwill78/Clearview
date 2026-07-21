@@ -44,7 +44,9 @@ export default function AuthScreen() {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
         if (data.session) {
-          router.replace('/(auth)/onboarding');
+          // Signed in immediately (email confirmation disabled). Head into the
+          // app; the tabs layout routes a not-yet-set-up profile to onboarding.
+          router.replace('/(tabs)');
         } else {
           setSuccessMsg('Account created! Check your email for a confirmation link, then sign in below.');
           setMode('signin');

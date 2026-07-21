@@ -20,15 +20,19 @@ export interface UserProfile {
 interface ProfileState {
   profile: UserProfile | null;
   loading: boolean;
+  hydrated: boolean;
   fetchProfile: (userId: string) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   setProfile: (profile: UserProfile | null) => void;
+  reset: () => void;
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   loading: false,
+  hydrated: false,
   setProfile: (profile) => set({ profile }),
+  reset: () => set({ profile: null, loading: false, hydrated: false }),
   fetchProfile: async (userId: string) => {
     set({ loading: true });
     try {
@@ -56,7 +60,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         });
       }
     } finally {
-      set({ loading: false });
+      // hydrated marks that the first profile load has settled (success or not),
+      // so routing can safely decide onboarding-vs-tabs without flashing.
+      set({ loading: false, hydrated: true });
     }
   },
   updateProfile: async (updates) => {

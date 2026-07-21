@@ -1,11 +1,16 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+import { getEntitlement, corsHeaders, jsonResponse } from '../_shared/entitlement.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
-const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    // Full birth-chart interpretation is a premium (Starseed/Cosmic) feature.
+    const { userId, isPremium } = await getEntitlement(req);
+    if (!userId) return jsonResponse({ error: 'Authentication required' }, 401);
+    if (!isPremium) return jsonResponse({ error: 'Premium required' }, 403);
+
     const { sunSign, moonSign, risingSign, planets } = await req.json();
 
     const planetLines = Array.isArray(planets) && planets.length
@@ -34,8 +39,8 @@ Write a warm, mystical yet grounded interpretation that weaves these placements 
 
     const data = await response.json();
     const text = data.content?.[0]?.text ?? 'The celestial map is realigning. Please try again in a moment.';
-    return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: corsHeaders });
+    return jsonResponse({ text });
+  } catch (_err) {
+    return jsonResponse({ error: 'Unable to generate reading' }, 500);
   }
 });

@@ -2,14 +2,20 @@ import { Tabs, Redirect } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors, BorderRadius } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
+import { useProfileStore } from '../../store/profileStore';
 
 export default function TabsLayout() {
   const { session, loading } = useAuthStore();
+  const { profile, hydrated } = useProfileStore();
 
   // Show nothing while the session check is in flight
   if (loading) return <ActivityIndicator style={{ flex: 1, backgroundColor: Colors.background }} color={Colors.primary} />;
   // If session is gone (sign-out), send back to auth
   if (!session) return <Redirect href="/(auth)" />;
+  // Wait for the first profile load so we don't flash onboarding at existing users
+  if (!hydrated) return <ActivityIndicator style={{ flex: 1, backgroundColor: Colors.background }} color={Colors.primary} />;
+  // Signed in but profile not set up yet → finish onboarding first
+  if (!profile?.birthDate) return <Redirect href="/(auth)/onboarding" />;
 
   return (
     <Tabs
