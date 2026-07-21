@@ -21,14 +21,18 @@ CREATE TRIGGER handle_updated_at_advisor_usage BEFORE UPDATE ON public.advisor_u
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- Create a usage row for every new user alongside their profile & subscription.
+-- NOTE: keep SECURITY DEFINER + SET search_path = public (from migration 002) so
+-- this cannot fail from the auth service's execution environment, and keep the
+-- targeted ON CONFLICT (user_id) — otherwise signups break with
+-- "Database error saving new user".
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   INSERT INTO public.profiles (id) VALUES (NEW.id)
   ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.subscriptions (user_id, plan, status)
   VALUES (NEW.id, 'free', 'active')
-  ON CONFLICT DO NOTHING;
+  ON CONFLICT (user_id) DO NOTHING;
   INSERT INTO public.advisor_usage (user_id) VALUES (NEW.id)
   ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
