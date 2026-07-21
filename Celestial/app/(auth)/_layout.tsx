@@ -1,16 +1,8 @@
-import { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
-import { useAuthStore } from '../../store/authStore';
+import { Stack } from 'expo-router';
 
+// Note: no session-based redirect here. The index screen redirects signed-in
+// users to the app itself, and onboarding lives in this group and must remain
+// reachable for signed-in users who haven't completed their profile yet.
 export default function AuthLayout() {
-  const { session, loading } = useAuthStore();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && session) {
-      router.replace('/(tabs)');
-    }
-  }, [session, loading]);
-
   return <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />;
 }

@@ -67,11 +67,11 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.greeting}>{GREETING},</Text>
-              <Text style={styles.name}>{profile?.name ?? 'Cosmic Soul'} {sunSignInfo?.symbol}</Text>
+              <Text style={styles.name}>{(profile?.name?.trim() || 'Cosmic Soul')} {sunSignInfo?.symbol}</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/profile')} style={styles.avatarBtn}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{(profile?.name ?? 'C')[0].toUpperCase()}</Text>
+                <Text style={styles.avatarText}>{(profile?.name?.trim() || 'C')[0].toUpperCase()}</Text>
               </View>
             </TouchableOpacity>
           </View>

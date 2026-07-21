@@ -1,11 +1,16 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+import { getEntitlement, corsHeaders, jsonResponse } from '../_shared/entitlement.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
-const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    // Detailed compatibility analysis is a premium (Starseed/Cosmic) feature.
+    const { userId, isPremium } = await getEntitlement(req);
+    if (!userId) return jsonResponse({ error: 'Authentication required' }, 401);
+    if (!isPremium) return jsonResponse({ error: 'Premium required' }, 403);
+
     const { sign1, sign2 } = await req.json();
 
     const prompt = `You are a gifted astrologer analyzing the compatibility between ${sign1} and ${sign2}.
@@ -48,8 +53,8 @@ Write in a warm, mystical yet grounded tone. Be specific to ${sign1} and ${sign2
     };
 
     // The client (generateCompatibility) does JSON.parse on the returned text.
-    return new Response(JSON.stringify({ text: JSON.stringify(result) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: corsHeaders });
+    return jsonResponse({ text: JSON.stringify(result) });
+  } catch (_err) {
+    return jsonResponse({ error: 'Unable to generate compatibility' }, 500);
   }
 });
