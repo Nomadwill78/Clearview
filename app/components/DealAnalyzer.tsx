@@ -145,7 +145,7 @@ function pct(n: number, decimals = 1): string {
 }
 
 function inputClass(extra = "") {
-  return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-sm ${extra}`;
+  return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition text-sm ${extra}`;
 }
 
 function LabelText({ children }: { children: React.ReactNode }) {
@@ -240,7 +240,7 @@ export default function DealAnalyzer({
       {/* ── INPUTS ── */}
       <section className="space-y-4">
         <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-          <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-4">
+          <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-4">
             Deal Inputs
           </h2>
 
@@ -299,7 +299,7 @@ export default function DealAnalyzer({
                   Rehab Budget
                 </span>
                 {scopeLinked && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-800/60 leading-none">
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-400 border border-accent-800/60 leading-none">
                     FROM SCOPE
                   </span>
                 )}
@@ -308,7 +308,7 @@ export default function DealAnalyzer({
                 <button
                   onClick={onGoToScope}
                   title="Itemized in the Scope Builder — click to edit"
-                  className="w-full bg-slate-800/60 border border-amber-900/50 rounded-lg py-2.5 px-3 text-left text-sm text-amber-300 font-medium tabular-nums hover:border-amber-600 transition"
+                  className="w-full bg-slate-800/60 border border-accent-900/50 rounded-lg py-2.5 px-3 text-left text-sm text-accent-300 font-medium tabular-nums hover:border-accent-600 transition"
                 >
                   {usd(rehabFromScope)}
                 </button>
@@ -349,7 +349,7 @@ export default function DealAnalyzer({
           {scopeLinked && (
             <p className="text-xs text-slate-500 -mt-2 mb-4">
               Rehab budget is synced from your itemized scope.{" "}
-              <button onClick={onGoToScope} className="text-amber-500 hover:text-amber-300 font-medium">
+              <button onClick={onGoToScope} className="text-accent-400 hover:text-accent-300 font-medium">
                 Edit scope →
               </button>
             </p>
@@ -365,7 +365,7 @@ export default function DealAnalyzer({
                   onClick={() => setFinancing(type)}
                   className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
                     form.financingType === type
-                      ? "bg-amber-500 text-slate-900"
+                      ? "bg-accent-500 text-white"
                       : "bg-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-700"
                   }`}
                 >
@@ -377,8 +377,8 @@ export default function DealAnalyzer({
 
           {/* Hard money options */}
           {isHM && (
-            <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
-              <p className="text-xs text-amber-600/80 mb-3 uppercase tracking-wider font-medium">
+            <div className="rounded-lg border border-accent-900/40 bg-accent-950/20 p-3">
+              <p className="text-xs text-accent-600/80 mb-3 uppercase tracking-wider font-medium">
                 Hard Money Terms
               </p>
               <div className="grid grid-cols-2 gap-3">
@@ -437,7 +437,7 @@ export default function DealAnalyzer({
                   taxRatePct: "",
                 })
               }
-              className="text-[10px] font-medium text-slate-500 hover:text-amber-400 transition-colors"
+              className="text-[10px] font-medium text-slate-500 hover:text-accent-400 transition-colors"
             >
               Reset defaults
             </button>
@@ -479,9 +479,45 @@ export default function DealAnalyzer({
       <section className="space-y-4">
         {results ? (
           <>
+            {/* Verdict — the one loud read on every deal */}
+            <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950">
+              <span
+                className={`absolute inset-y-0 left-0 w-1 ${
+                  results.grossProfit > 0 ? "bg-emerald-500" : "bg-red-500"
+                }`}
+              />
+              <div className="p-5 pl-6">
+                <div className="text-xs text-slate-500 truncate">
+                  {form.address.trim() || "Untitled deal"}
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-3 flex-wrap">
+                  <span
+                    className={`font-mono text-3xl sm:text-[2.75rem] leading-none font-semibold tabular-nums tracking-tight ${
+                      results.grossProfit > 0 ? "text-emerald-400" : "text-red-400"
+                    }`}
+                  >
+                    {results.grossProfit >= 0 ? "+" : "−"}
+                    {usd(Math.abs(results.grossProfit))}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                      results.grossProfit > 0
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        : "bg-red-500/10 text-red-400 border-red-500/30"
+                    }`}
+                  >
+                    {results.grossProfit > 0 ? "▲ Profitable" : "▼ Loss"}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  Projected gross profit · ARV {usd(parseFloat(form.arv))}
+                </div>
+              </div>
+            </div>
+
             {/* Cost Stack */}
             <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-              <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-4">
                 Cost Stack Breakdown
               </h2>
               <div className="space-y-0.5">
@@ -517,7 +553,7 @@ export default function DealAnalyzer({
               </div>
               <div className="flex justify-between items-center pt-3 mt-2 border-t border-slate-700">
                 <span className="font-semibold text-slate-200">Total Cost Stack</span>
-                <span className="font-bold tabular-nums text-amber-400 text-lg">
+                <span className="font-mono font-bold tabular-nums text-accent-400 text-lg">
                   {usd(results.costStack.total)}
                 </span>
               </div>
@@ -531,7 +567,7 @@ export default function DealAnalyzer({
                 <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
-                      results.grossProfit > 0 ? "bg-amber-500" : "bg-red-500"
+                      results.grossProfit > 0 ? "bg-accent-500" : "bg-red-500"
                     }`}
                     style={{ width: `${Math.min(100, results.arvPct)}%` }}
                   />
@@ -554,12 +590,6 @@ export default function DealAnalyzer({
             <div className="grid grid-cols-3 gap-3">
               {[
                 {
-                  label: "Gross Profit",
-                  value: usd(results.grossProfit),
-                  positive: results.grossProfit > 0,
-                  sub: `ARV − Costs`,
-                },
-                {
                   label: "ROI",
                   value: pct(results.roi),
                   positive: results.roi > 0,
@@ -571,13 +601,19 @@ export default function DealAnalyzer({
                   positive: results.netAfterTax > 0,
                   sub: `${results.assumptions.taxRatePct}% tax rate`,
                 },
+                {
+                  label: "Margin",
+                  value: pct((results.grossProfit / parseFloat(form.arv)) * 100),
+                  positive: results.grossProfit > 0,
+                  sub: "of ARV",
+                },
               ].map(({ label, value, positive, sub }) => (
                 <div
                   key={label}
                   className="bg-slate-900 rounded-xl border border-slate-800 p-3 flex flex-col items-center text-center"
                 >
                   <div
-                    className={`text-lg sm:text-xl font-bold tabular-nums leading-tight ${
+                    className={`font-mono text-lg sm:text-xl font-bold tabular-nums leading-tight ${
                       positive ? "text-emerald-400" : "text-red-400"
                     }`}
                   >
@@ -612,7 +648,7 @@ export default function DealAnalyzer({
                 </div>
                 <div className="text-xs text-slate-500 mb-1">Max allowable purchase</div>
                 <div
-                  className={`text-base font-bold tabular-nums ${
+                  className={`font-mono text-base font-bold tabular-nums ${
                     results.seventyPctPasses ? "text-emerald-300" : "text-red-300"
                   }`}
                 >
@@ -634,7 +670,7 @@ export default function DealAnalyzer({
 
               <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-500/20 text-accent-400 text-xs">
                     ◷
                   </span>
                   <span className="text-sm font-semibold text-slate-200">Daily Hold Cost</span>
@@ -642,7 +678,7 @@ export default function DealAnalyzer({
                 <div className="text-xs text-slate-500 mb-1">
                   {form.financingType === "hardmoney" ? "Carry + financing per day" : "Carry costs per day"}
                 </div>
-                <div className="text-base font-bold tabular-nums text-amber-300">
+                <div className="font-mono text-base font-bold tabular-nums text-accent-300">
                   {usd(results.dailyHoldingCost)}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
@@ -661,8 +697,8 @@ export default function DealAnalyzer({
           </>
         ) : (
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-10 flex flex-col items-center justify-center text-center min-h-64">
-            <div className="w-14 h-14 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-4">
-              <span className="text-amber-500/60 text-2xl">◈</span>
+            <div className="w-14 h-14 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
+              <span className="text-accent-400/60 text-2xl">◈</span>
             </div>
             <p className="text-slate-300 font-medium">Enter deal details to see results</p>
             <p className="text-slate-600 text-sm mt-1">

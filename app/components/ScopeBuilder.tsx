@@ -27,7 +27,7 @@ function usd(n: number): string {
 }
 
 function inputClass(extra = "") {
-  return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-sm ${extra}`;
+  return `w-full bg-slate-800 border border-slate-700 rounded-lg py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition text-sm ${extra}`;
 }
 
 // Priority dot color by tier (1 = critical → 3 = cosmetic)
@@ -150,7 +150,7 @@ function ItemRow({
           <p className="mt-1 text-[10px] leading-tight text-red-400">Enter a number</p>
         )}
         {needsQty && (
-          <p className="mt-1 text-[10px] leading-tight text-amber-500">Add qty</p>
+          <p className="mt-1 text-[10px] leading-tight text-accent-400">Add qty</p>
         )}
       </div>
       <div>
@@ -167,7 +167,7 @@ function ItemRow({
         {costInvalid ? (
           <p className="mt-1 text-[10px] leading-tight text-red-400">Enter a number</p>
         ) : needsCost ? (
-          <p className="mt-1 text-[10px] leading-tight text-amber-500">
+          <p className="mt-1 text-[10px] leading-tight text-accent-400">
             Add cost{hint !== "0" ? ` — typical ${hint}` : ""}
           </p>
         ) : showTypical ? (
@@ -313,7 +313,7 @@ export default function ScopeBuilder({
           <div className="relative">
             <button
               onClick={() => setAddRoomOpen((v) => !v)}
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 transition-colors"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-400 text-white transition-colors"
             >
               + Add a room
             </button>
@@ -328,7 +328,7 @@ export default function ScopeBuilder({
                     <button
                       key={rt.type}
                       onClick={() => addRoom(rt.type)}
-                      className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-amber-500/15 hover:text-amber-300 transition-colors"
+                      className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-accent-500/15 hover:text-accent-300 transition-colors"
                     >
                       {rt.menuLabel}
                     </button>
@@ -372,7 +372,7 @@ export default function ScopeBuilder({
                     {filledCount} item{filledCount === 1 ? "" : "s"}
                   </span>
                 )}
-                <span className={`font-bold tabular-nums text-sm ${sSubtotal > 0 ? "text-amber-400" : "text-slate-600"}`}>
+                <span className={`font-mono font-bold tabular-nums text-sm ${sSubtotal > 0 ? "text-accent-400" : "text-slate-600"}`}>
                   {usd(sSubtotal)}
                 </span>
                 <span className="text-slate-500 text-xs select-none">{collapsedNow ? "▸" : "▾"}</span>
@@ -388,7 +388,7 @@ export default function ScopeBuilder({
                   ))}
                   <button
                     onClick={() => addSectionItem(section.key)}
-                    className="mt-1 text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
+                    className="mt-1 text-xs font-medium text-accent-400 hover:text-accent-300 transition-colors"
                   >
                     + Add line item
                   </button>
@@ -409,7 +409,7 @@ export default function ScopeBuilder({
         return (
           <section
             key={room.id}
-            className="bg-slate-900 rounded-xl border border-amber-900/40 overflow-hidden"
+            className="bg-slate-900 rounded-xl border border-accent-900/40 overflow-hidden"
           >
             <div className="w-full flex items-center justify-between px-4 sm:px-5 py-3 gap-3">
               <button
@@ -418,7 +418,7 @@ export default function ScopeBuilder({
                 title={collapsedNow ? "Expand" : "Collapse"}
               >
                 <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${TIER_DOT[room.tier]}`} />
-                <span className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold shrink-0">
+                <span className="text-[10px] uppercase tracking-wider text-accent-600 font-semibold shrink-0">
                   Added room
                 </span>
                 <span className="text-slate-500 text-xs select-none">{collapsedNow ? "▸" : "▾"}</span>
@@ -428,7 +428,7 @@ export default function ScopeBuilder({
                 value={room.name}
                 onChange={(e) => renameRoom(room.id, e.target.value)}
                 placeholder="Room name"
-                className="flex-1 min-w-0 bg-transparent border-0 border-b border-transparent hover:border-slate-700 focus:border-amber-500 text-sm font-semibold text-slate-100 focus:outline-none py-0.5"
+                className="flex-1 min-w-0 bg-transparent border-0 border-b border-transparent hover:border-slate-700 focus:border-accent-500 text-sm font-semibold text-slate-100 focus:outline-none py-0.5"
                 title="Rename this room"
               />
               <div className="flex items-center gap-3 shrink-0">
@@ -437,7 +437,7 @@ export default function ScopeBuilder({
                     {filledCount} item{filledCount === 1 ? "" : "s"}
                   </span>
                 )}
-                <span className={`font-bold tabular-nums text-sm ${rSubtotal > 0 ? "text-amber-400" : "text-slate-600"}`}>
+                <span className={`font-mono font-bold tabular-nums text-sm ${rSubtotal > 0 ? "text-accent-400" : "text-slate-600"}`}>
                   {usd(rSubtotal)}
                 </span>
                 <button
@@ -459,7 +459,7 @@ export default function ScopeBuilder({
                   ))}
                   <button
                     onClick={() => addRoomLine(room)}
-                    className="mt-1 text-xs font-medium text-amber-500 hover:text-amber-300 transition-colors"
+                    className="mt-1 text-xs font-medium text-accent-400 hover:text-accent-300 transition-colors"
                   >
                     + Add line item
                   </button>
@@ -471,7 +471,7 @@ export default function ScopeBuilder({
       })}
 
       {/* Totals */}
-      <section className="bg-slate-900 rounded-xl border border-amber-900/50 p-5">
+      <section className="bg-slate-900 rounded-xl border border-accent-900/50 p-5">
         <div className="flex justify-between items-center py-1.5">
           <span className="text-sm text-slate-400">Scope Subtotal</span>
           <span className="font-medium tabular-nums text-slate-200">{usd(subtotal)}</span>
@@ -484,7 +484,7 @@ export default function ScopeBuilder({
               aria-checked={contingencyEnabled}
               onClick={() => onContingencyChange(!contingencyEnabled)}
               className={`relative w-9 h-5 rounded-full transition-colors ${
-                contingencyEnabled ? "bg-amber-500" : "bg-slate-700"
+                contingencyEnabled ? "bg-accent-500" : "bg-slate-700"
               }`}
             >
               <span
@@ -502,7 +502,7 @@ export default function ScopeBuilder({
 
         <div className="flex justify-between items-center pt-3">
           <span className="font-semibold text-slate-100">Total Rehab Budget</span>
-          <span className="font-bold tabular-nums text-amber-400 text-xl">{usd(grandTotal)}</span>
+          <span className="font-mono font-bold tabular-nums text-accent-400 text-xl">{usd(grandTotal)}</span>
         </div>
         {grandTotal > 0 && (
           <p className="text-xs text-slate-500 mt-2">

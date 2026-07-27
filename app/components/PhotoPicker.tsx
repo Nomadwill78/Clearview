@@ -56,7 +56,7 @@ export function MainPhotoPicker({ photoId, onChange }: PickerProps) {
             <button
               onClick={() => inputRef.current?.click()}
               disabled={busy}
-              className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-900/80 text-slate-200 border border-slate-700 hover:border-amber-500 transition"
+              className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-900/80 text-slate-200 border border-slate-700 hover:border-accent-500 transition"
             >
               {busy ? "Saving…" : "Replace"}
             </button>
@@ -72,7 +72,7 @@ export function MainPhotoPicker({ photoId, onChange }: PickerProps) {
         <button
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="w-full h-24 rounded-lg border-2 border-dashed border-slate-700 hover:border-amber-600 text-slate-500 hover:text-amber-400 transition flex flex-col items-center justify-center gap-1"
+          className="w-full h-24 rounded-lg border-2 border-dashed border-slate-700 hover:border-accent-600 text-slate-500 hover:text-accent-400 transition flex flex-col items-center justify-center gap-1"
         >
           <span className="text-xl leading-none">📷</span>
           <span className="text-xs font-medium">
@@ -126,7 +126,7 @@ export function ItemPhotoButton({ photoId, onChange }: PickerProps) {
           <button
             onClick={() => inputRef.current?.click()}
             title="Replace photo"
-            className="block w-9 h-9 rounded-md overflow-hidden border border-slate-600 hover:border-amber-500 transition"
+            className="block w-9 h-9 rounded-md overflow-hidden border border-slate-600 hover:border-accent-500 transition"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={dataUrl} alt="" className="w-full h-full object-cover" />
@@ -144,7 +144,7 @@ export function ItemPhotoButton({ photoId, onChange }: PickerProps) {
           onClick={() => inputRef.current?.click()}
           disabled={busy}
           title="Add a photo of this item"
-          className="shrink-0 w-9 h-9 rounded-md border border-dashed border-slate-700 text-slate-600 hover:border-amber-600 hover:text-amber-400 transition text-sm"
+          className="shrink-0 w-9 h-9 rounded-md border border-dashed border-slate-700 text-slate-600 hover:border-accent-600 hover:text-accent-400 transition text-sm"
         >
           {busy ? "…" : "📷"}
         </button>

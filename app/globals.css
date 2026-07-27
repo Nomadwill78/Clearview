@@ -1,21 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617;
-  --foreground: #f1f5f9;
+  --background: #0b0e13;
+  --foreground: #eaeef3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+/* ── Operator palette ──────────────────────────────────────────────
+   Overrides Tailwind's default `slate` scale with a cooler, deeper
+   graphite ramp, and adds an electric-blue `accent` used for brand,
+   actions, and focus. Profit/loss stay emerald/red (Tailwind defaults). */
+@theme {
+  --color-slate-950: #0b0e13;
+  --color-slate-900: #12161d;
+  --color-slate-800: #1c222c;
+  --color-slate-700: #2b333f;
+  --color-slate-600: #47515f;
+  --color-slate-500: #707a8a;
+  --color-slate-400: #939cac;
+  --color-slate-300: #c4cad4;
+  --color-slate-200: #dee2e9;
+  --color-slate-100: #eaeef3;
+
+  --color-accent-100: #dfe4ff;
+  --color-accent-200: #c0caff;
+  --color-accent-300: #9db0ff;
+  --color-accent-400: #6f86ff;
+  --color-accent-500: #3d5afe;
+  --color-accent-600: #2f45e0;
+  --color-accent-700: #2637b4;
+  --color-accent-800: #212f80;
+  --color-accent-900: #1a2352;
+  --color-accent-950: #131a33;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
@@ -26,4 +54,21 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Quality floor: a clearly visible keyboard focus ring, and honor a
+   reader's request for reduced motion. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

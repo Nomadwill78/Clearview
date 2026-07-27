@@ -111,11 +111,11 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
           </div>
 
           {/* Pro */}
-          <div className="relative rounded-xl border border-amber-700/70 bg-amber-950/15 p-5">
-            <span className="absolute -top-2.5 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-slate-900 uppercase tracking-wider">
+          <div className="relative rounded-xl border border-accent-700/70 bg-accent-950/15 p-5">
+            <span className="absolute -top-2.5 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-500 text-white uppercase tracking-wider">
               Best for working flippers
             </span>
-            <h3 className="font-semibold text-amber-400 mb-3">FlipOS Pro</h3>
+            <h3 className="font-semibold text-accent-400 mb-3">FlipOS Pro</h3>
 
             {/* Both billing options always visible and selectable */}
             <div className="space-y-2 mb-4">
@@ -124,18 +124,18 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
                 onClick={() => setInterval("monthly")}
                 className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
                   interval === "monthly"
-                    ? "border-amber-500 bg-amber-500/10"
+                    ? "border-accent-500 bg-accent-500/10"
                     : "border-slate-700 hover:border-slate-600"
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span
                     className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      interval === "monthly" ? "border-amber-500" : "border-slate-600"
+                      interval === "monthly" ? "border-accent-500" : "border-slate-600"
                     }`}
                   >
                     {interval === "monthly" && (
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="w-2 h-2 rounded-full bg-accent-500" />
                     )}
                   </span>
                   <span className="text-sm font-medium text-slate-200">Monthly</span>
@@ -151,18 +151,18 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
                 onClick={() => setInterval("annual")}
                 className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
                   interval === "annual"
-                    ? "border-amber-500 bg-amber-500/10"
+                    ? "border-accent-500 bg-accent-500/10"
                     : "border-slate-700 hover:border-slate-600"
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span
                     className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      interval === "annual" ? "border-amber-500" : "border-slate-600"
+                      interval === "annual" ? "border-accent-500" : "border-slate-600"
                     }`}
                   >
                     {interval === "annual" && (
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="w-2 h-2 rounded-full bg-accent-500" />
                     )}
                   </span>
                   <span className="text-sm font-medium text-slate-200">Annual</span>
@@ -183,7 +183,7 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
             <ul className="space-y-2 mb-5">
               {PRO_FEATURES.map((f) => (
                 <li key={f} className="flex gap-2 text-sm text-slate-300">
-                  <span className="text-amber-500">✓</span>
+                  <span className="text-accent-400">✓</span>
                   {f}
                 </li>
               ))}
@@ -191,7 +191,7 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
             <button
               onClick={handleUpgrade}
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-900 font-bold text-sm transition-colors"
+              className="w-full py-2.5 rounded-lg bg-accent-500 hover:bg-accent-400 disabled:opacity-60 text-white font-bold text-sm transition-colors"
             >
               {loading
                 ? "Opening secure checkout…"
@@ -206,7 +206,7 @@ export default function PricingModal({ open, onClose, reason }: PricingModalProp
         </div>
 
         {notice && (
-          <p className="mt-4 text-sm text-amber-400 bg-amber-950/30 border border-amber-900/50 rounded-lg px-3 py-2">
+          <p className="mt-4 text-sm text-accent-400 bg-accent-950/30 border border-accent-900/50 rounded-lg px-3 py-2">
             {notice}
           </p>
         )}

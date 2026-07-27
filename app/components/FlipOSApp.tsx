@@ -172,15 +172,15 @@ export default function FlipOSApp() {
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-7 h-7 rounded-md bg-amber-500 flex items-center justify-center font-bold text-slate-900 text-xs select-none">
+            <div className="w-7 h-7 rounded-md bg-accent-500 flex items-center justify-center font-bold text-white text-xs select-none">
               FO
             </div>
             <span className="text-lg font-bold tracking-tight">
-              <span className="text-amber-400">Flip</span>
+              <span className="text-accent-400">Flip</span>
               <span className="text-slate-100">OS</span>
             </span>
             {isPro ? (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-slate-900 uppercase tracking-wider select-none">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-500 text-white uppercase tracking-wider select-none">
                 Pro
               </span>
             ) : (
@@ -189,7 +189,7 @@ export default function FlipOSApp() {
                   setPricingReason(null);
                   setPricingOpen(true);
                 }}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-700/60 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-accent-700/60 text-accent-400 hover:bg-accent-500/10 transition-colors"
               >
                 Upgrade
               </button>
@@ -201,7 +201,7 @@ export default function FlipOSApp() {
             <select
               value={activeId}
               onChange={(e) => setActiveId(e.target.value)}
-              className="max-w-40 sm:max-w-60 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500 truncate"
+              className="max-w-40 sm:max-w-60 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent-500 truncate"
               title="Switch deal"
             >
               {deals.map((d) => (
@@ -212,7 +212,7 @@ export default function FlipOSApp() {
             </select>
             <button
               onClick={handleNewDeal}
-              className="shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              className="shrink-0 bg-accent-500 hover:bg-accent-400 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors"
               title="Start a new deal"
             >
               + New
@@ -255,7 +255,7 @@ export default function FlipOSApp() {
               onClick={() => setTab(key)}
               className={`px-3.5 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === key
-                  ? "border-amber-500 text-amber-400"
+                  ? "border-accent-500 text-accent-400"
                   : "border-transparent text-slate-500 hover:text-slate-300"
               }`}
             >
@@ -267,7 +267,7 @@ export default function FlipOSApp() {
             <button
               onClick={handleExportPdf}
               disabled={exporting}
-              className="my-1 px-3 text-xs font-semibold rounded-lg border border-amber-700/60 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
+              className="my-1 px-3 text-xs font-semibold rounded-lg border border-accent-700/60 text-accent-400 hover:bg-accent-500/10 disabled:opacity-50 transition-colors"
             >
               {exporting
                 ? "Building PDF…"
@@ -283,8 +283,8 @@ export default function FlipOSApp() {
 
       {sampleExported && !isPro && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3">
-            <p className="text-sm text-amber-200/90">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-accent-800/60 bg-accent-950/30 px-4 py-3">
+            <p className="text-sm text-accent-200/90">
               📄 Your sample scope PDF downloaded — that&apos;s exactly what your contractor
               gets. Go Pro to remove the watermark and export every deal, every revision.
             </p>
@@ -294,13 +294,13 @@ export default function FlipOSApp() {
                   setPricingReason("pdf");
                   setPricingOpen(true);
                 }}
-                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 transition-colors"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-400 text-white transition-colors"
               >
                 Remove watermark
               </button>
               <button
                 onClick={() => setSampleExported(false)}
-                className="text-amber-600 hover:text-amber-300 text-sm px-1"
+                className="text-accent-600 hover:text-accent-300 text-sm px-1"
               >
                 ✕
               </button>

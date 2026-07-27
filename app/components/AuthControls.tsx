@@ -16,7 +16,7 @@ export function AuthControls() {
   if (!isSignedIn) {
     return (
       <SignInButton mode="modal">
-        <button className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:border-amber-500 hover:text-amber-400 transition-colors shrink-0">
+        <button className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:border-accent-500 hover:text-accent-400 transition-colors shrink-0">
           Sign in
         </button>
       </SignInButton>
