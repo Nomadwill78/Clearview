@@ -15,7 +15,8 @@ import {
 } from "@/app/lib/plan";
 import { authEnabled } from "@/app/lib/authConfig";
 import { AuthControls, AccountPlanSync } from "@/app/components/AuthControls";
-import DealAnalyzer, { computeResults } from "@/app/components/DealAnalyzer";
+import { dealVerdict } from "@/app/lib/analysis";
+import DealAnalyzer from "@/app/components/DealAnalyzer";
 import ScopeBuilder from "@/app/components/ScopeBuilder";
 import PricingModal from "@/app/components/PricingModal";
 
@@ -156,7 +157,8 @@ export default function FlipOSApp() {
     : 0;
   const rehabFromScope = scopeRehab > 0 ? scopeRehab : null;
 
-  const results = activeDeal ? computeResults(activeDeal.form, rehabFromScope) : null;
+  // Strategy-aware health badge: profit for flips, cash flow for holds
+  const verdict = activeDeal ? dealVerdict(activeDeal.form, rehabFromScope) : null;
 
   if (!deals || !activeDeal) {
     return (
@@ -227,15 +229,15 @@ export default function FlipOSApp() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {results && (
+            {verdict && (
               <div
                 className={`hidden md:block text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  results.grossProfit > 0
+                  verdict.positive
                     ? "bg-emerald-900/60 text-emerald-400 border border-emerald-800"
                     : "bg-red-900/60 text-red-400 border border-red-800"
                 }`}
               >
-                {results.grossProfit > 0 ? "▲ Profitable" : "▼ Loss"}
+                {verdict.label}
               </div>
             )}
             {authEnabled && <AuthControls />}

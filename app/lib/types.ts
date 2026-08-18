@@ -1,5 +1,19 @@
 export type FinancingType = "cash" | "hardmoney";
 
+// Long-term hold financing (rentals & commercial): all cash or a mortgage.
+export type HoldFinancing = "cash" | "loan";
+
+// Investment strategy for a deal. Optional on DealForm for back-compat —
+// deals saved before strategies existed are flips.
+export type Strategy = "flip" | "rental" | "brrrr" | "commercial";
+
+export const STRATEGIES: { key: Strategy; label: string }[] = [
+  { key: "flip", label: "Flip" },
+  { key: "rental", label: "Rental" },
+  { key: "brrrr", label: "BRRRR" },
+  { key: "commercial", label: "Commercial" },
+];
+
 export interface DealForm {
   address: string;
   purchasePrice: string;
@@ -16,6 +30,30 @@ export interface DealForm {
   sellClosingPct?: string;
   monthlyCarryPct?: string;
   taxRatePct?: string;
+
+  // ── Strategy fields (all optional for back-compat) ──
+  strategy?: Strategy;
+  // Rental / BRRRR income & operating expenses
+  monthlyRent?: string;
+  vacancyPct?: string;
+  maintenancePct?: string;
+  managementPct?: string;
+  monthlyTaxes?: string;
+  monthlyInsurance?: string;
+  // Long-term purchase financing (rental & commercial)
+  holdFinancing?: HoldFinancing;
+  downPaymentPct?: string;
+  loanRatePct?: string;
+  loanTermYears?: string;
+  // BRRRR refinance terms
+  refiLtvPct?: string;
+  refiRatePct?: string;
+  refiTermYears?: string;
+  refiClosingPct?: string;
+  // Commercial income & valuation
+  grossAnnualIncome?: string;
+  annualOperatingExpenses?: string;
+  marketCapRatePct?: string;
 }
 
 export type Tier = 1 | 2 | 3;

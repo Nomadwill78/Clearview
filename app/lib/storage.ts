@@ -13,6 +13,8 @@ export function emptyForm(): DealForm {
     financingType: "cash",
     hardMoneyRate: "12",
     hardMoneyPoints: "2",
+    strategy: "flip",
+    holdFinancing: "loan",
   };
 }
 
@@ -53,6 +55,16 @@ export function saveDeals(deals: Deal[]): void {
   }
 }
 
+// Strategy tags in the deal switcher. Flips are the default, so they stay
+// untagged and existing deals read exactly as they did before.
+const STRATEGY_TAGS: Record<string, string> = {
+  rental: "Rental",
+  brrrr: "BRRRR",
+  commercial: "Commercial",
+};
+
 export function dealLabel(deal: Deal): string {
-  return deal.form.address.trim() || "Untitled deal";
+  const base = deal.form.address.trim() || "Untitled deal";
+  const tag = deal.form.strategy ? STRATEGY_TAGS[deal.form.strategy] : undefined;
+  return tag ? `${base} · ${tag}` : base;
 }
