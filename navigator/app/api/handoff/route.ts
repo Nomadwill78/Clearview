@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { embeddedOne, type EmbeddedKpi } from "@/lib/supabase/embedded";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -17,20 +18,26 @@ export async function POST(req: NextRequest) {
     supabase.from("chat_messages").select("content").eq("org_id", orgId).eq("role", "user").order("created_at", { ascending: false }).limit(5),
   ]);
 
-  const scoreLines = (scores ?? [])
-    .map((s) => `- ${(s.kpi_definitions as { name: string; domain: string } | null)?.name ?? "KPI"}: ${s.score.toFixed(1)}/5`)
+  // Promise.all over heterogeneous query builders erases the row types, so the
+  // shapes selected above are restated here.
+  const scoreRows = (scores ?? []) as { score: number; kpi_definitions: unknown }[];
+  const itemRows = (items ?? []) as { title: string; status: string }[];
+  const chatRows = (chatMsgs ?? []) as { content: string }[];
+
+  const scoreLines = scoreRows
+    .map((s) => `- ${embeddedOne<EmbeddedKpi>(s.kpi_definitions)?.name ?? "KPI"}: ${s.score.toFixed(1)}/5`)
     .join("\n");
 
-  const topIssues = (scores ?? [])
+  const topIssues = scoreRows
     .filter((s) => s.score <= 2)
     .slice(0, 3)
-    .map((s) => (s.kpi_definitions as { name: string } | null)?.name ?? "Issue")
+    .map((s) => embeddedOne<EmbeddedKpi>(s.kpi_definitions)?.name ?? "Issue")
     .join(", ");
 
-  const openCount = (items ?? []).filter((i) => i.status === "open").length;
-  const doneCount = (items ?? []).filter((i) => i.status === "complete").length;
+  const openCount = itemRows.filter((i) => i.status === "open").length;
+  const doneCount = itemRows.filter((i) => i.status === "complete").length;
 
-  const recentQuestions = (chatMsgs ?? []).map((m) => `- ${m.content}`).join("\n");
+  const recentQuestions = chatRows.map((m) => `- ${m.content}`).join("\n");
 
   const briefing = `# Navigator Briefing — ${org?.name ?? "Unknown Org"}
 

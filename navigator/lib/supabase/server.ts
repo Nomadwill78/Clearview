@@ -1,4 +1,5 @@
-import { createServerClient as createSSRClient } from "@supabase/ssr";
+import { createServerClient as createSSRClient, type CookieOptions } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export async function createServerClient() {
@@ -9,7 +10,7 @@ export async function createServerClient() {
     {
       cookies: {
         getAll() { return cookieStore.getAll(); },
-        setAll(toSet) {
+        setAll(toSet: { name: string; value: string; options: CookieOptions }[]) {
           try { toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); }
           catch { /* read-only in RSC */ }
         },
@@ -18,10 +19,14 @@ export async function createServerClient() {
   );
 }
 
+/**
+ * Service-role client. Bypasses row-level security, so every caller must
+ * establish the caller's org membership itself before reading or writing.
+ */
 export function createServiceClient() {
-  const { createClient } = require("@supabase/supabase-js");
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } },
   );
 }

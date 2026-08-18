@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
     .select("file_size_bytes")
     .eq("org_id", orgId);
 
-  const currentUsage = (usage ?? []).reduce((sum, d) => sum + d.file_size_bytes, 0);
+  const currentUsage = (usage ?? []).reduce(
+    (sum: number, d: { file_size_bytes: number }) => sum + d.file_size_bytes,
+    0,
+  );
   if (currentUsage + file.size > limit) {
     return NextResponse.json({ error: "Storage limit reached. Upgrade your plan." }, { status: 400 });
   }

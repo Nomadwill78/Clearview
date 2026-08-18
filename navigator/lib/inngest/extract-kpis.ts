@@ -1,5 +1,14 @@
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
+import { embeddedOne, type EmbeddedKpi } from "@/lib/supabase/embedded";
+
+/** A KPI definition as selected by the extraction job. */
+type KpiDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+};
 import { extractKpisFromDocument, generateActionPlan } from "@/lib/claude";
 
 export const extractKpisJob = inngest.createFunction(
@@ -28,19 +37,17 @@ export const extractKpisJob = inngest.createFunction(
       return data;
     });
 
-    // Download file from Supabase Storage
-    const fileBuffer = await step.run("download-file", async () => {
+    // Download and convert to text in a single step. Inngest serialises step
+    // return values to JSON, so the binary must never cross a step boundary —
+    // only the extracted text does.
+    const documentText = await step.run("extract-text", async () => {
       const { data, error } = await supabase.storage
         .from("documents")
         .download(doc.storage_path);
       if (error) throw new Error(`Storage download failed: ${error.message}`);
-      return await data.arrayBuffer();
-    });
 
-    // Convert to text
-    const documentText = await step.run("extract-text", async () => {
       const ext = doc.file_name.split(".").pop()?.toLowerCase() ?? "";
-      const buffer = Buffer.from(fileBuffer);
+      const buffer = Buffer.from(await data.arrayBuffer());
 
       if (ext === "pdf") {
         const pdfParse = (await import("pdf-parse")).default;
@@ -71,13 +78,13 @@ export const extractKpisJob = inngest.createFunction(
     });
 
     // Fetch KPI definitions for this org (standard + custom)
-    const kpiDefs = await step.run("fetch-kpi-definitions", async () => {
+    const kpiDefs = await step.run("fetch-kpi-definitions", async (): Promise<KpiDefinition[]> => {
       const { data } = await supabase
         .from("kpi_definitions")
         .select("id, name, description, domain")
         .or(`org_id.eq.${orgId},org_id.is.null`)
         .eq("is_active", true);
-      return data ?? [];
+      return (data ?? []) as KpiDefinition[];
     });
 
     // Extract KPI values using Claude
@@ -150,12 +157,17 @@ export const extractKpisJob = inngest.createFunction(
 
       if (!scores || scores.length === 0) return;
 
-      const kpiScores = scores.map((s) => ({
-        id: (s.kpi_definitions as { id: string; name: string; domain: string }).id,
-        name: (s.kpi_definitions as { id: string; name: string; domain: string }).name,
-        domain: (s.kpi_definitions as { id: string; name: string; domain: string }).domain,
-        score: s.score,
-      }));
+      const scoreRows = scores as { kpi_id: string; score: number; kpi_definitions: unknown }[];
+
+      const kpiScores = scoreRows.flatMap((s) => {
+        const kpi = embeddedOne<Required<EmbeddedKpi>>(s.kpi_definitions);
+        // Skip scores whose KPI definition was removed rather than emitting a
+        // half-populated entry into the action plan prompt.
+        if (!kpi) return [];
+        return [{ id: kpi.id, name: kpi.name, domain: kpi.domain, score: s.score }];
+      });
+
+      if (kpiScores.length === 0) return;
 
       const { data: org } = await supabase
         .from("organizations")
@@ -173,7 +185,9 @@ export const extractKpisJob = inngest.createFunction(
         .select("title")
         .eq("org_id", orgId);
 
-      const existingTitles = new Set((existing ?? []).map((i) => i.title));
+      const existingTitles = new Set(
+        ((existing ?? []) as { title: string }[]).map((i) => i.title),
+      );
 
       const newItems = plan
         .filter((p) => !existingTitles.has(p.title))
