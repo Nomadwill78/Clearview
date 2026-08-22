@@ -1,5 +1,5 @@
-import DealAnalyzer from "@/app/components/DealAnalyzer";
+import FlipOSApp from "@/app/components/FlipOSApp";
 
 export default function Home() {
-  return <DealAnalyzer />;
+  return <FlipOSApp />;
 }
