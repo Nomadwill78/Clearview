@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { embeddedOne, type EmbeddedKpi } from "@/lib/supabase/embedded";
 import DomainCard from "@/components/kpi/domain-card";
 import { TrendingUp, FileText, CheckSquare, AlertTriangle } from "lucide-react";
 import Link from "next/link";
@@ -76,7 +77,7 @@ export default async function DashboardPage() {
   // Build per-domain average scores
   const domainScores: Record<string, { avg: number; count: number }> = {};
   for (const s of scores ?? []) {
-    const domain = (s.kpi_definitions as { domain: string } | null)?.domain;
+    const domain = embeddedOne<EmbeddedKpi>(s.kpi_definitions)?.domain;
     if (!domain) continue;
     if (!domainScores[domain]) domainScores[domain] = { avg: 0, count: 0 };
     domainScores[domain].avg += s.score;

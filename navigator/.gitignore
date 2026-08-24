@@ -1,0 +1,15 @@
+# The repo-root .gitignore anchors its patterns with a leading slash, so they do
+# not cover this nested app. Ignore the Navigator's own build artefacts here.
+
+/node_modules
+/.next/
+/out/
+/build
+
+# Env files (the root ignores `.env*` globally, repeated here to be explicit)
+.env
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

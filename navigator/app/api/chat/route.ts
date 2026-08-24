@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { embeddedOne, type EmbeddedKpi } from "@/lib/supabase/embedded";
 import { chatWithConsultant } from "@/lib/claude";
 
 export async function POST(req: NextRequest) {
@@ -37,16 +38,23 @@ export async function POST(req: NextRequest) {
   const { data: openItems } = await supabase.from("action_items").select("id", { count: "exact" }).eq("org_id", orgId).eq("status", "open");
   const { data: doneItems } = await supabase.from("action_items").select("id", { count: "exact" }).eq("org_id", orgId).eq("status", "complete");
 
-  const kpiScores = (scores ?? []).map((s) => ({
-    name: (s.kpi_definitions as { name: string; domain: string } | null)?.name ?? "",
-    domain: (s.kpi_definitions as { name: string; domain: string } | null)?.domain ?? "",
-    score: s.score,
-  }));
+  // Promise.all over heterogeneous query builders erases the row type, so the
+  // shape selected above is restated here.
+  type ScoreRow = { score: number; kpi_definitions: unknown };
+
+  const kpiScores = ((scores ?? []) as ScoreRow[]).map((s) => {
+    const kpi = embeddedOne<EmbeddedKpi>(s.kpi_definitions);
+    return {
+      name: kpi?.name ?? "",
+      domain: kpi?.domain ?? "",
+      score: s.score,
+    };
+  });
 
   const { reply, citedSources, suggestHandoff } = await chatWithConsultant(message, {
     orgName: org?.name ?? "Your Organization",
     kpiScores,
-    recentDocuments: (docs ?? []).map((d) => d.file_name),
+    recentDocuments: ((docs ?? []) as { file_name: string }[]).map((d) => d.file_name),
     openActionItems: openItems?.length ?? 0,
     completedActionItems: doneItems?.length ?? 0,
     chatHistory: (history ?? []) as { role: "user" | "assistant"; content: string }[],

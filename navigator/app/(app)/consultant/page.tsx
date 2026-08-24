@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { embeddedOne, type EmbeddedKpi } from "@/lib/supabase/embedded";
 import ChatWindow from "@/components/consultant/chat";
 import ActionPlan from "@/components/consultant/action-plan";
 
@@ -28,6 +29,11 @@ export default async function ConsultantPage() {
     .eq("org_id", member.org_id)
     .order("updated_at", { ascending: false });
 
+  const items = (actionItems ?? []).map((item) => ({
+    ...item,
+    kpi_definitions: embeddedOne<EmbeddedKpi>(item.kpi_definitions),
+  }));
+
   const canEdit = ["admin", "leadership"].includes(member.role);
 
   return (
@@ -48,7 +54,7 @@ export default async function ConsultantPage() {
         />
         <ActionPlan
           orgId={member.org_id}
-          items={actionItems ?? []}
+          items={items}
           canEdit={canEdit}
         />
       </div>
