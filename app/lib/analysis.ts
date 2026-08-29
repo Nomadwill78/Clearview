@@ -105,6 +105,44 @@ export interface Results {
   arvPct: number;
   costPct: number;
   assumptions: Assumptions;
+  // Minimum ARV at which the deal breaks even (profit = $0)
+  breakEvenArv: number;
+  // Projected profit divided by holding days — useful for comparing deals
+  profitPerDay: number;
+}
+
+// Sensitivity analysis: profit & margin at several ARV scenarios around the
+// user's base case. Helps investors see how much margin for error they have.
+export interface SensitivityPoint {
+  pctDelta: number; // -10, -5, 0, +5, +10
+  arv: number;
+  profit: number;
+  margin: number;
+  positive: boolean;
+}
+
+export function computeFlipSensitivity(
+  form: DealForm,
+  rehabFromScope: number | null
+): SensitivityPoint[] | null {
+  const baseArv = parseFloat(form.arv);
+  if (isNaN(baseArv) || baseArv <= 0) return null;
+
+  const deltas = [-10, -5, 0, 5, 10];
+  return deltas.map((delta) => {
+    const adjustedArv = baseArv * (1 + delta / 100);
+    const adjustedForm = { ...form, arv: String(adjustedArv) };
+    const r = computeResults(adjustedForm, rehabFromScope);
+    const profit = r ? r.grossProfit : 0;
+    const margin = adjustedArv > 0 ? (profit / adjustedArv) * 100 : 0;
+    return {
+      pctDelta: delta,
+      arv: adjustedArv,
+      profit,
+      margin,
+      positive: profit > 0,
+    };
+  });
 }
 
 export function computeResults(form: DealForm, rehabFromScope: number | null): Results | null {
@@ -144,6 +182,12 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
   const costPct = (total / arv) * 100;
   const arvPct = Math.max(0, Math.min(100, costPct));
 
+  // Break-even ARV: the ARV at which grossProfit = 0.
+  // grossProfit = arv - total, but sellClose depends on arv, so:
+  // arv = (pp + rehab + buyClose + carry + hmInterest + hmPoints) / (1 - sellClosingPct/100)
+  const nonArvCosts = pp + rehab + buyClose + carry + hmInterest + hmPointsCost;
+  const breakEvenArv = nonArvCosts / (1 - assumptions.sellClosingPct / 100);
+
   return {
     costStack: {
       purchasePrice: pp,
@@ -167,6 +211,8 @@ export function computeResults(form: DealForm, rehabFromScope: number | null): R
     arvPct,
     costPct,
     assumptions,
+    breakEvenArv,
+    profitPerDay: grossProfit / days,
   };
 }
 

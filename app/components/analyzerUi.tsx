@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 // Shared formatting helpers and small input/display components used by every
 // strategy analyzer (Flip, Rental, BRRRR, Commercial).
 
@@ -165,22 +167,32 @@ export function CostRow({
 }
 
 // Segmented control (financing toggles, strategy picker).
+// When `wrap` is set (4+ options), buttons form a 2×2 grid on small screens
+// and collapse to a single row on sm+.
 export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  wrap,
 }: {
   options: readonly { key: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  wrap?: boolean;
 }) {
   return (
-    <div className="flex rounded-lg border border-slate-700 overflow-hidden">
+    <div
+      className={`rounded-lg border border-slate-700 overflow-hidden ${
+        wrap ? "grid grid-cols-2 gap-px bg-slate-700 sm:flex sm:gap-0" : "flex"
+      }`}
+    >
       {options.map(({ key, label }) => (
         <button
           key={key}
           onClick={() => onChange(key)}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+          className={`py-2.5 text-sm font-medium transition-colors ${
+            wrap ? "w-full sm:flex-1" : "flex-1"
+          } ${
             value === key
               ? "bg-accent-500 text-white"
               : "bg-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-700"
@@ -189,6 +201,57 @@ export function Segmented<T extends string>({
           {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// Collapsible wrapper for secondary panels like Assumptions — reduces visual
+// clutter so the primary inputs and results stay front and center.
+export function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  onReset,
+  resetLabel = "Reset defaults",
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  onReset?: () => void;
+  resetLabel?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/50">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3"
+      >
+        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+          {title}
+        </span>
+        <div className="flex items-center gap-3">
+          {onReset && open && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onReset();
+              }}
+              className="text-[10px] font-medium text-slate-500 hover:text-accent-400 transition-colors"
+            >
+              {resetLabel}
+            </span>
+          )}
+          <span
+            className={`text-slate-500 text-xs transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            ▾
+          </span>
+        </div>
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   );
 }

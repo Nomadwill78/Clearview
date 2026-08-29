@@ -21,6 +21,7 @@ import {
   RuleCard,
   VerdictCard,
   LabelText,
+  CollapsibleSection,
 } from "@/app/components/analyzerUi";
 import type { StrategyAnalyzerProps } from "@/app/components/RentalAnalyzer";
 
@@ -132,18 +133,10 @@ export default function CommercialAnalyzer({
         </InputCard>
 
         {/* Editable assumptions */}
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-              Assumptions
-            </p>
-            <button
-              onClick={() => set({ buyClosingPct: "", vacancyPct: "" })}
-              className="text-[10px] font-medium text-slate-500 hover:text-accent-400 transition-colors"
-            >
-              Reset defaults
-            </button>
-          </div>
+        <CollapsibleSection
+          title="Assumptions"
+          onReset={() => set({ buyClosingPct: "", vacancyPct: "" })}
+        >
           <div className="grid grid-cols-2 gap-3">
             <AssumptionField
               label="Buy closing"
@@ -162,7 +155,7 @@ export default function CommercialAnalyzer({
             Vacancy is % of gross income. Leave operating expenses blank to estimate them at{" "}
             {COMMERCIAL_DEFAULTS.opexPctOfEgi}% of effective gross income.
           </p>
-        </div>
+        </CollapsibleSection>
       </section>
 
       {/* ── RESULTS ── */}

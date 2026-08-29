@@ -3,11 +3,12 @@
 import { useMemo } from "react";
 import type { DealForm, FinancingType, Strategy } from "@/app/lib/types";
 import { STRATEGIES } from "@/app/lib/types";
-import { computeResults, DEFAULT_ASSUMPTIONS } from "@/app/lib/analysis";
+import { computeResults, computeFlipSensitivity, DEFAULT_ASSUMPTIONS } from "@/app/lib/analysis";
 import { MainPhotoPicker } from "@/app/components/PhotoPicker";
 import RentalAnalyzer from "@/app/components/RentalAnalyzer";
 import BrrrrAnalyzer from "@/app/components/BrrrrAnalyzer";
 import CommercialAnalyzer from "@/app/components/CommercialAnalyzer";
+import SensitivityPanel from "@/app/components/SensitivityPanel";
 import {
   usd,
   usdExact,
@@ -28,6 +29,7 @@ import {
   RuleCard,
   InfoCard,
   VerdictCard,
+  CollapsibleSection,
 } from "@/app/components/analyzerUi";
 
 // Flip math lives in app/lib/analysis now; re-exported here so existing
@@ -64,6 +66,7 @@ export default function DealAnalyzer(props: DealAnalyzerProps) {
           options={STRATEGIES}
           value={strategy}
           onChange={(s) => onFormChange({ ...form, strategy: s })}
+          wrap
         />
       </div>
 
@@ -178,25 +181,17 @@ function FlipAnalyzer({
         </InputCard>
 
         {/* Editable assumptions */}
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-              Assumptions
-            </p>
-            <button
-              onClick={() =>
-                set({
-                  buyClosingPct: "",
-                  sellClosingPct: "",
-                  monthlyCarryPct: "",
-                  taxRatePct: "",
-                })
-              }
-              className="text-[10px] font-medium text-slate-500 hover:text-accent-400 transition-colors"
-            >
-              Reset defaults
-            </button>
-          </div>
+        <CollapsibleSection
+          title="Assumptions"
+          onReset={() =>
+            set({
+              buyClosingPct: "",
+              sellClosingPct: "",
+              monthlyCarryPct: "",
+              taxRatePct: "",
+            })
+          }
+        >
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <AssumptionField
               label="Buy closing"
@@ -227,7 +222,7 @@ function FlipAnalyzer({
             Sell closing (% of ARV) covers agent commission plus transfer taxes &amp; fees — tune
             it to your market. Blank fields use the defaults shown.
           </p>
-        </div>
+        </CollapsibleSection>
       </section>
 
       {/* ── RESULTS ── */}
@@ -327,16 +322,16 @@ function FlipAnalyzer({
                   sub: `${results.assumptions.taxRatePct}% tax rate`,
                 },
                 {
-                  label: "Margin",
-                  value: pct((results.grossProfit / parseFloat(form.arv)) * 100),
-                  positive: results.grossProfit > 0,
-                  sub: "of ARV",
+                  label: "Profit / Day",
+                  value: usd(results.profitPerDay),
+                  positive: results.profitPerDay > 0,
+                  sub: "over holding period",
                 },
               ]}
             />
 
-            {/* 70% Rule + Daily Holding */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 70% Rule + Break-even ARV + Daily Holding */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <RuleCard
                 passes={results.seventyPctPasses}
                 title="70% Rule"
@@ -349,6 +344,19 @@ function FlipAnalyzer({
                         results.costStack.purchasePrice - results.maxAllowable
                       )} off to pass`
                     : "Rehab is too high — no purchase price passes at this ARV"
+                }
+              />
+
+              <InfoCard
+                icon="◈"
+                title="Break-even ARV"
+                subtitle="Minimum ARV to not lose money"
+                value={usd(results.breakEvenArv)}
+                footnote={
+                  <>
+                    {parseFloat(form.arv) - results.breakEvenArv > 0 ? "+" : "−"}
+                    {usd(Math.abs(parseFloat(form.arv) - results.breakEvenArv))} cushion vs your ARV
+                  </>
                 }
               />
 
@@ -371,6 +379,12 @@ function FlipAnalyzer({
                 }
               />
             </div>
+
+            {/* Sensitivity analysis */}
+            {(() => {
+              const sens = computeFlipSensitivity(form, rehabFromScope);
+              return sens ? <SensitivityPanel rows={sens} /> : null;
+            })()}
           </>
         ) : (
           <EmptyState subtitle="Fill in purchase price, ARV, rehab, and holding period" />

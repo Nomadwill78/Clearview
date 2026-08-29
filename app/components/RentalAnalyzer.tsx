@@ -23,6 +23,7 @@ import {
   RuleCard,
   VerdictCard,
   LabelText,
+  CollapsibleSection,
 } from "@/app/components/analyzerUi";
 
 export interface StrategyAnalyzerProps {
@@ -139,20 +140,12 @@ export default function RentalAnalyzer({
         </InputCard>
 
         {/* Editable assumptions */}
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-              Assumptions
-            </p>
-            <button
-              onClick={() =>
-                set({ buyClosingPct: "", vacancyPct: "", maintenancePct: "", managementPct: "" })
-              }
-              className="text-[10px] font-medium text-slate-500 hover:text-accent-400 transition-colors"
-            >
-              Reset defaults
-            </button>
-          </div>
+        <CollapsibleSection
+          title="Assumptions"
+          onReset={() =>
+            set({ buyClosingPct: "", vacancyPct: "", maintenancePct: "", managementPct: "" })
+          }
+        >
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <AssumptionField
               label="Buy closing"
@@ -183,7 +176,7 @@ export default function RentalAnalyzer({
             Vacancy, maintenance, and management are % of monthly rent. Blank fields use the
             defaults shown.
           </p>
-        </div>
+        </CollapsibleSection>
       </section>
 
       {/* ── RESULTS ── */}
