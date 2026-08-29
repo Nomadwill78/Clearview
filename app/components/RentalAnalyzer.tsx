@@ -109,7 +109,7 @@ export default function RentalAnalyzer({
               <p className="text-xs text-accent-600/80 mb-3 uppercase tracking-wider font-medium">
                 Loan Terms
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <SuffixField
                   label="Down"
                   value={form.downPaymentPct ?? ""}

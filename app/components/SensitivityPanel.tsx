@@ -9,7 +9,7 @@ export default function SensitivityPanel({ rows }: { rows: SensitivityPoint[] })
   const baseRow = rows.find((r) => r.pctDelta === 0);
 
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-5">
       <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-1">
         ARV Sensitivity
       </h2>

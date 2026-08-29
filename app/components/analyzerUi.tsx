@@ -278,7 +278,7 @@ export function VerdictCard({
       <span
         className={`absolute inset-y-0 left-0 w-1 ${positive ? "bg-emerald-500" : "bg-red-500"}`}
       />
-      <div className="p-5 pl-6">
+      <div className="p-4 pl-5 sm:p-5 sm:pl-6">
         <div className="text-xs text-slate-500 truncate">{address || "Untitled deal"}</div>
         <div className="mt-1.5 flex items-baseline gap-3 flex-wrap">
           <span
@@ -426,7 +426,7 @@ export function ScopeSyncHint({
 // Card shells so every strategy's panels look identical.
 export function InputCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-5">
       <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-4">
         Deal Inputs
       </h2>
@@ -437,7 +437,7 @@ export function InputCard({ children }: { children: React.ReactNode }) {
 
 export function ResultCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-5">
       <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-4">
         {title}
       </h2>

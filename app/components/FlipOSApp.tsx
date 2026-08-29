@@ -172,7 +172,7 @@ export default function FlipOSApp() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="w-7 h-7 rounded-md bg-accent-500 flex items-center justify-center font-bold text-white text-xs select-none">
               FO
@@ -199,11 +199,11 @@ export default function FlipOSApp() {
           </div>
 
           {/* Deal switcher */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:min-w-0">
             <select
               value={activeId}
               onChange={(e) => setActiveId(e.target.value)}
-              className="max-w-40 sm:max-w-60 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent-500 truncate"
+              className="flex-1 sm:flex-none sm:max-w-60 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent-500 truncate"
               title="Switch deal"
             >
               {deals.map((d) => (
@@ -248,10 +248,10 @@ export default function FlipOSApp() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1">
           {(
             [
-              ["analyzer", "Deal Analyzer"],
-              ["scope", "Scope Builder"],
-            ] as [Tab, string][]
-          ).map(([key, label]) => (
+              ["analyzer", "Deal Analyzer", "Analyzer"],
+              ["scope", "Scope Builder", "Scope"],
+            ] as [Tab, string, string][]
+          ).map(([key, label, shortLabel]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -261,7 +261,8 @@ export default function FlipOSApp() {
                   : "border-transparent text-slate-500 hover:text-slate-300"
               }`}
             >
-              {label}
+              <span className="sm:hidden">{shortLabel}</span>
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
           <div className="flex-1" />
@@ -269,15 +270,22 @@ export default function FlipOSApp() {
             <button
               onClick={handleExportPdf}
               disabled={exporting}
-              className="my-1 px-3 text-xs font-semibold rounded-lg border border-accent-700/60 text-accent-400 hover:bg-accent-500/10 disabled:opacity-50 transition-colors"
+              className="my-1 px-3 text-xs font-semibold rounded-lg border border-accent-700/60 text-accent-400 hover:bg-accent-500/10 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              {exporting
-                ? "Building PDF…"
-                : isPro
-                ? "⤓ Export PDF for GCs"
-                : freePdfUsed[activeDeal.id]
-                ? "⤓ Export PDF 🔒"
-                : "⤓ Free sample PDF"}
+              {exporting ? (
+                "Building…"
+              ) : (
+                <>
+                  <span className="sm:hidden">⤓ PDF</span>
+                  <span className="hidden sm:inline">
+                    {isPro
+                      ? "⤓ Export PDF for GCs"
+                      : freePdfUsed[activeDeal.id]
+                      ? "⤓ Export PDF 🔒"
+                      : "⤓ Free sample PDF"}
+                  </span>
+                </>
+              )}
             </button>
           )}
         </div>

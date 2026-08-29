@@ -239,7 +239,7 @@ function FlipAnalyzer({
             />
 
             {/* Cost Stack */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-5">
               <h2 className="text-sm font-semibold text-accent-400 uppercase tracking-wider mb-4">
                 Cost Stack Breakdown
               </h2>
